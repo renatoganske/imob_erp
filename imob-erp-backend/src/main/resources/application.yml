@@ -4,9 +4,9 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   datasource:
-    url: ${jdbc:postgresql://localhost:5432/imoberp_db}
-    username: ${SPRING_DATASOURCE_USERNAM:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:1234}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5434/imobcrm}
+    username: ${SPRING_DATASOURCE_USERNAME:imobuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:imobpass}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -25,6 +25,10 @@ spring:
 
 server:
   port: ${PORT:8080}
+
+logging:
+  pattern:
+    console: "%clr(%d{HH:mm:ss.SSS}){faint} %clr(%5p) %clr([%X{requestId:-}]){faint} %clr([tenant=%X{tenantId:-}]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx"
 
 management:
   endpoints:

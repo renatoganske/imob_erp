@@ -12,6 +12,7 @@ import com.imobcrm.shared.exception.ResourceNotFoundException;
 import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LeadService {
@@ -56,7 +58,9 @@ public class LeadService {
                 .stage(LeadStage.NOVO)
                 .notes(request.notes())
                 .build();
-        return leadMapper.toResponseDTO(leadRepository.save(lead));
+        Lead saved = leadRepository.save(lead);
+        log.info("Lead criado: id={} assignedTo={} source={}", saved.getId(), saved.getAssignedTo(), saved.getSource());
+        return leadMapper.toResponseDTO(saved);
     }
 
     @Transactional
@@ -77,9 +81,11 @@ public class LeadService {
     @Transactional
     public LeadResponseDTO updateStage(UUID id, LeadStage stage) {
         Lead lead = findOwned(id);
-        boolean movingToFechado = stage == LeadStage.FECHADO && lead.getStage() != LeadStage.FECHADO;
+        LeadStage previousStage = lead.getStage();
+        boolean movingToFechado = stage == LeadStage.FECHADO && previousStage != LeadStage.FECHADO;
         lead.setStage(stage);
         Lead saved = leadRepository.save(lead);
+        log.info("Lead {} mudou de estagio: {} -> {}", saved.getId(), previousStage, stage);
 
         // RN-02: ao mover lead para FECHADO, cria automaticamente um rascunho
         // de contrato. O Admin/Financeiro revisa os dados pendentes e ativa manualmente.
@@ -92,6 +98,7 @@ public class LeadService {
 
     private void createDraftContractFromLead(Lead lead) {
         if (lead.getPropertiesOfInterest().isEmpty()) {
+            log.warn("Lead {} fechado sem imoveis de interesse; rascunho de contrato nao foi gerado", lead.getId());
             return;
         }
         Property property = lead.getPropertiesOfInterest().iterator().next();
@@ -115,7 +122,8 @@ public class LeadService {
                 "PENDENTE",
                 null,
                 "Rascunho gerado automaticamente a partir do lead " + lead.getId());
-        contractService.create(draft);
+        var contract = contractService.create(draft);
+        log.info("Rascunho de contrato {} gerado automaticamente a partir do lead {}", contract.id(), lead.getId());
     }
 
     @Transactional
@@ -123,6 +131,7 @@ public class LeadService {
         validateAgentExists(agentId);
         Lead lead = findOwned(id);
         lead.setAssignedTo(agentId);
+        log.info("Lead {} reatribuido ao corretor {}", id, agentId);
         return leadMapper.toResponseDTO(leadRepository.save(lead));
     }
 

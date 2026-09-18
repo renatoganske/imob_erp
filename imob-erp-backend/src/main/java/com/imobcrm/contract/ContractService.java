@@ -16,6 +16,7 @@ import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.user.User;
 import com.imobcrm.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ContractService {
@@ -70,7 +72,9 @@ public class ContractService {
                 .commissionRateOverride(request.commissionRateOverride())
                 .notes(request.notes())
                 .build();
-        return contractMapper.toResponseDTO(contractRepository.save(contract));
+        Contract saved = contractRepository.save(contract);
+        log.info("Contrato criado: id={} type={} value={} propertyId={}", saved.getId(), saved.getType(), saved.getValue(), saved.getPropertyId());
+        return contractMapper.toResponseDTO(saved);
     }
 
     @Transactional
@@ -104,6 +108,7 @@ public class ContractService {
             throw new BusinessRuleException("Somente contratos em rascunho podem ser ativados", "CONTRACT_NOT_DRAFT");
         }
         contract.setStatus(ContractStatus.ATIVO);
+        log.info("Ativando contrato {}: gerando parcelas financeiras e comissao do corretor", contract.getId());
 
         Property property = propertyRepository.findByIdAndTenantIdAndActiveTrue(contract.getPropertyId(), TenantContext.tenantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Imovel", contract.getPropertyId()));

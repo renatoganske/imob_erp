@@ -7,6 +7,7 @@ import com.imobcrm.financial.dto.FinancialDashboardDTO;
 import com.imobcrm.financial.dto.FinancialEntryRequestDTO;
 import com.imobcrm.financial.dto.FinancialEntryResponseDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FinancialService {
@@ -63,6 +65,7 @@ public class FinancialService {
         }
         entry.setStatus(FinancialStatus.PAGO);
         entry.setPaidAt(LocalDate.now());
+        log.info("Lancamento financeiro {} pago: type={} value={}", id, entry.getType(), entry.getValue());
         return financialMapper.toResponseDTO(financialRepository.save(entry));
     }
 
@@ -70,6 +73,7 @@ public class FinancialService {
     public FinancialEntryResponseDTO cancel(UUID id) {
         FinancialEntry entry = findOwned(id);
         entry.setStatus(FinancialStatus.CANCELADO);
+        log.info("Lancamento financeiro {} cancelado", id);
         return financialMapper.toResponseDTO(financialRepository.save(entry));
     }
 
@@ -115,6 +119,7 @@ public class FinancialService {
                     .build();
             financialRepository.save(entry);
         }
+        log.info("12 parcelas de aluguel geradas para o contrato {}: valor mensal={}", contractId, monthlyValue);
     }
 
     @Transactional

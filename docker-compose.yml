@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: imob-erp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: imobcrm
+      POSTGRES_USER: imobuser
+      POSTGRES_PASSWORD: imobpass
+    ports:
+      - "5434:5432"
+    volumes:
+      - imob_erp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U imobuser -d imobcrm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  imob_erp_postgres_data:

@@ -34,7 +34,8 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
-                .addFilterBefore(new ClerkJwtAuthenticationFilter(clerkProperties), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new ClerkJwtAuthenticationFilter(clerkProperties), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new RequestLoggingFilter(), ClerkJwtAuthenticationFilter.class);
 
         return http.build();
     }
