@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+target/
+
+# TypeScript build cache
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local-only settings (project .claude/ config is otherwise meant to be shared)
+.claude/settings.local.json
+
+# Playwright MCP debug output (screenshots/console logs from browser automation sessions)
+.playwright-mcp/
+
+# Downloaded skill docs, regenerated from imob-erp-frontend/skills-lock.json (like node_modules)
+imob-erp-frontend/.agents/
+
+# IntelliJ "Modernize" plugin local migration hooks (auto-generated, not authored)
+.github/modernize/

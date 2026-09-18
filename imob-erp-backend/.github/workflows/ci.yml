@@ -1,0 +1,138 @@
+name: CI — Build e Testes
+
+# Quando este workflow vai rodar:
+# - Em qualquer push para main ou develop
+# - Em qualquer Pull Request apontando para main ou develop
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build e Testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: imobcrm_test
+          POSTGRES_USER: imobuser
+          POSTGRES_PASSWORD: imobpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # 1. Baixa o código do repositório
+      - name: Checkout do código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Instala o Java 21
+      - name: Configurar Java 21 (Temurin) + cache Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+          cache-dependency-path: '**/pom.xml'
+
+      # 3. Torna o Maven wrapper executável
+      - name: Tornar o Maven wrapper executável
+        run: chmod +x ./mvnw || true
+
+      # 4. Aguarda o PostgreSQL estar pronto
+      - name: Aguardar o PostgreSQL
+        shell: bash
+        run: |
+          echo "Aguardando o PostgreSQL em localhost:5432..."
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 && { echo "PostgreSQL está pronto"; exit 0; } || echo "aguardando... ($i)"; sleep 2
+          done
+          echo "PostgreSQL não ficou pronto a tempo"; exit 1
+
+      # 5. Compila o projeto (package) — ignora os testes
+      - name: Compilar (package) — ignorar testes
+        run: |
+          ./mvnw -B -V -e -T 1C -DskipTests package
+        env:
+          MAVEN_OPTS: "-Xmx2g"
+
+      # 6. Roda os testes unitários
+      - name: Rodar testes unitários
+        run: |
+          ./mvnw -B -V -e -T 1C test
+        env:
+          MAVEN_OPTS: "-Xmx2g"
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/imobcrm_test
+          SPRING_DATASOURCE_USERNAME: imobuser
+          SPRING_DATASOURCE_PASSWORD: imobpass
+          SPRING_PROFILES_ACTIVE: test
+          # Usa secrets se disponíveis, senão usa mocks seguros para CI
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY != '' && secrets.CLERK_SECRET_KEY || 'sk_test_fake_for_ci' }}
+          CLERK_JWKS_URL: ${{ secrets.CLERK_JWKS_URL != '' && secrets.CLERK_JWKS_URL || 'http://localhost/fake-jwks' }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID != '' && secrets.R2_ACCOUNT_ID || 'fake' }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID != '' && secrets.R2_ACCESS_KEY_ID || 'fake' }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY != '' && secrets.R2_SECRET_ACCESS_KEY || 'fake' }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME != '' && secrets.R2_BUCKET_NAME || 'fake' }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL != '' && secrets.R2_PUBLIC_URL || 'http://localhost/fake-r2' }}
+
+      # 7. Roda os testes de integração (verify) — apenas em pushes para main/develop
+      - name: Rodar testes de integração (verify) — apenas em pushes para main/develop
+        if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
+        run: |
+          ./mvnw -B -V -e -T 1C verify
+        env:
+          MAVEN_OPTS: "-Xmx2g"
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/imobcrm_test
+          SPRING_DATASOURCE_USERNAME: imobuser
+          SPRING_DATASOURCE_PASSWORD: imobpass
+          SPRING_PROFILES_ACTIVE: test
+
+      # 8. Lista os arquivos de relatório de testes (para depuração)
+      - name: Listar arquivos de relatório de testes (depuração)
+        if: always()
+        run: |
+          echo "--- Relatórios do Surefire ---"
+          ls -la target/surefire-reports || true
+          echo "--- Relatórios do Failsafe ---"
+          ls -la target/failsafe-reports || true
+
+      # 9. Faz o upload dos relatórios de testes
+      - name: Fazer upload dos relatórios de testes
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports/**/*.xml
+            target/failsafe-reports/**/*.xml
+          retention-days: 14
+
+      # 10. Publica o resumo dos testes (JUnit)
+      - name: Publicar resumo dos testes (JUnit)
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Testes unitários e de integração
+          path: |
+            target/surefire-reports/*.xml
+            target/failsafe-reports/*.xml
+          reporter: junit
+          fail-on-error: false

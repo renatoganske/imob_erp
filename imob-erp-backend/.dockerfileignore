@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+.mvn/
+*.md
+.env
+.env.*
+*.iml
+.idea/
+*.class

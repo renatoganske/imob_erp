@@ -1,0 +1,16 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+clerk:
+  secret-key: sk_test_fake_for_ci
+  jwks-url: http://localhost/fake-jwks
+
+r2:
+  account-id: fake
+  access-key-id: fake
+  secret-access-key: fake
+  bucket-name: fake
+  public-url: http://localhost/fake-r2
