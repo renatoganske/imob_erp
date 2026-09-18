@@ -5,6 +5,7 @@ import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.visit.dto.VisitRequestDTO;
 import com.imobcrm.visit.dto.VisitResponseDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VisitService {
@@ -41,13 +43,17 @@ public class VisitService {
                 .scheduledAt(request.scheduledAt())
                 .status(VisitStatus.AGENDADA)
                 .build();
-        return visitMapper.toResponseDTO(visitRepository.save(visit));
+        Visit saved = visitRepository.save(visit);
+        log.info("Visita agendada: id={} propertyId={} agentId={} scheduledAt={}",
+                saved.getId(), saved.getPropertyId(), saved.getAgentId(), saved.getScheduledAt());
+        return visitMapper.toResponseDTO(saved);
     }
 
     @Transactional
     public VisitResponseDTO updateStatus(UUID id, VisitStatus status) {
         Visit visit = findOwned(id);
         visit.setStatus(status);
+        log.info("Visita {} mudou de status para {}", id, status);
         return visitMapper.toResponseDTO(visitRepository.save(visit));
     }
 
@@ -56,6 +62,7 @@ public class VisitService {
         Visit visit = findOwned(id);
         visit.setResult(result);
         visit.setStatus(VisitStatus.REALIZADA);
+        log.info("Visita {} registrada como realizada", id);
         return visitMapper.toResponseDTO(visitRepository.save(visit));
     }
 

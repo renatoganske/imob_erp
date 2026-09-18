@@ -6,6 +6,7 @@ import com.imobcrm.shared.exception.BusinessRuleException;
 import com.imobcrm.shared.exception.ResourceNotFoundException;
 import com.imobcrm.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CommissionService {
@@ -43,6 +45,7 @@ public class CommissionService {
         }
         commission.setStatus(CommissionStatus.PAGO);
         commission.setPaidAt(LocalDate.now());
+        log.info("Comissao {} paga: agentId={} value={}", id, commission.getAgentId(), commission.getValue());
         return commissionMapper.toResponseDTO(commissionRepository.save(commission));
     }
 
@@ -71,6 +74,8 @@ public class CommissionService {
                 .status(CommissionStatus.PENDENTE)
                 .build();
         commissionRepository.save(commission);
+        log.info("Comissao gerada a partir do contrato {}: agentId={} rate={}% value={}",
+                contractId, agentId, rate, value);
     }
 
     private Commission findOwned(UUID id) {

@@ -7,6 +7,7 @@ import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.property.dto.PropertyRequestDTO;
 import com.imobcrm.property.dto.PropertyResponseDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.math.BigDecimal;
 import java.util.Set;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PropertyService {
@@ -61,7 +63,9 @@ public class PropertyService {
                 .purpose(request.purpose())
                 .status(PropertyStatus.DISPONIVEL)
                 .build();
-        return propertyMapper.toResponseDTO(propertyRepository.save(property));
+        Property saved = propertyRepository.save(property);
+        log.info("Imovel criado: id={} title={} price={}", saved.getId(), saved.getTitle(), saved.getPrice());
+        return propertyMapper.toResponseDTO(saved);
     }
 
     @Transactional
@@ -81,7 +85,9 @@ public class PropertyService {
                     "Imovel com contrato ativo so pode ter o status alterado pelo fluxo de contrato",
                     "PROPERTY_STATUS_LOCKED");
         }
+        PropertyStatus previousStatus = property.getStatus();
         property.setStatus(status);
+        log.info("Imovel {} mudou de status: {} -> {}", id, previousStatus, status);
         return propertyMapper.toResponseDTO(propertyRepository.save(property));
     }
 
@@ -91,6 +97,7 @@ public class PropertyService {
         Property property = findOwned(id);
         property.setActive(false);
         propertyRepository.save(property);
+        log.info("Imovel {} desativado (soft delete)", id);
     }
 
     @Transactional

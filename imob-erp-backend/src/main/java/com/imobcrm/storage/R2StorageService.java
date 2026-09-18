@@ -1,6 +1,7 @@
 package com.imobcrm.storage;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -12,6 +13,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class R2StorageService {
@@ -37,9 +39,11 @@ public class R2StorageService {
                             .build(),
                     RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
         } catch (IOException e) {
+            log.error("Falha ao enviar arquivo para o R2: key={}", key, e);
             throw new UncheckedIOException("Falha ao ler o arquivo para upload", e);
         }
 
+        log.info("Arquivo enviado ao R2: key={} size={}b", key, file.getSize());
         return r2Properties.publicUrl() + "/" + key;
     }
 
@@ -48,6 +52,7 @@ public class R2StorageService {
                 .bucket(r2Properties.bucketName())
                 .key(key)
                 .build());
+        log.info("Arquivo removido do R2: key={}", key);
     }
 
     private String extractExtension(String originalFilename) {
