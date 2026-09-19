@@ -1,35 +1,16 @@
 package com.imobcrm.tenant;
 
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.RSASSASigner;
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
-import com.sun.net.httpserver.HttpServer;
+import com.imobcrm.support.IntegrationTestBase;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.testcontainers.containers.PostgreSQLContainer;
 
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 
@@ -40,45 +21,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Isolamento multi-tenant ponta a ponta (IMOB-19): banco PostgreSQL real (Testcontainers) com o
- * schema do Flyway, contexto Spring completo e o ClerkJwtAuthenticationFilter real validando JWTs
- * assinados localmente e publicados via JWKS em um servidor HTTP embutido.
+ * Isolamento multi-tenant ponta a ponta (IMOB-19), sobre a infraestrutura de {@link IntegrationTestBase}.
  * Qualquer vazamento entre tenants aqui deve quebrar o build.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-class TenantIsolationTest {
-
-    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
-    private static final RSAKey SIGNING_KEY;
-    private static final HttpServer JWKS_SERVER;
-
-    static {
-        POSTGRES.start();
-        try {
-            SIGNING_KEY = new RSAKeyGenerator(2048).keyID("test-key").generate();
-            byte[] jwks = new JWKSet(SIGNING_KEY.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8);
-            JWKS_SERVER = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-            JWKS_SERVER.createContext("/jwks", exchange -> {
-                exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.sendResponseHeaders(200, jwks.length);
-                exchange.getResponseBody().write(jwks);
-                exchange.close();
-            });
-            JWKS_SERVER.start();
-        } catch (Exception e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("clerk.jwks-url", () -> "http://localhost:" + JWKS_SERVER.getAddress().getPort() + "/jwks");
-    }
+class TenantIsolationTest extends IntegrationTestBase {
 
     /** Todos os ids de um tenant populado. */
     private record Seed(UUID tenantId, UUID adminId, String adminClerkId, UUID agentId, UUID propertyId,
@@ -87,13 +33,6 @@ class TenantIsolationTest {
 
     private static Seed tenantA;
     private static Seed tenantB;
-
-    @Value("${clerk.issuer}")
-    private String issuer;
-    @Autowired
-    private MockMvc mvc;
-    @Autowired
-    private JdbcTemplate jdbc;
 
     @BeforeAll
     static void seed(@Autowired JdbcTemplate jdbc) {
@@ -135,20 +74,8 @@ class TenantIsolationTest {
         return new Seed(tenant, admin, adminClerk, agent, property, lead, visit, contract, entry, commission);
     }
 
-    private String tokenFor(Seed tenant) throws Exception {
-        JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                .issuer(issuer)
-                .subject(tenant.adminClerkId())
-                .expirationTime(Date.from(Instant.now().plusSeconds(300)))
-                .claim("publicMetadata", Map.of("tenantId", tenant.tenantId().toString(), "role", "ADMIN"))
-                .build();
-        SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(SIGNING_KEY.getKeyID()).build(), claims);
-        jwt.sign(new RSASSASigner(SIGNING_KEY));
-        return jwt.serialize();
-    }
-
     private MockHttpServletRequestBuilder as(Seed tenant, MockHttpServletRequestBuilder request) throws Exception {
-        return request.header("Authorization", "Bearer " + tokenFor(tenant));
+        return withToken(token(tenant.adminClerkId(), tenant.tenantId(), "ADMIN"), request);
     }
 
     // ---- listagens: cada tenant so enxerga os proprios registros ----

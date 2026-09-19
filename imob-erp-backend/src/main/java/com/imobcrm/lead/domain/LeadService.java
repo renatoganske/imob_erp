@@ -10,9 +10,12 @@ import com.imobcrm.lead.infra.LeadMapper;
 import com.imobcrm.property.domain.Property;
 import com.imobcrm.property.domain.PropertyRepository;
 import com.imobcrm.property.domain.enums.PropertyPurpose;
+import com.imobcrm.shared.exception.BusinessException;
+import com.imobcrm.shared.exception.ForbiddenException;
 import com.imobcrm.shared.exception.ResourceNotFoundException;
 import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.user.domain.UserRepository;
+import com.imobcrm.user.domain.enums.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -36,7 +39,9 @@ public class LeadService {
 
     @Transactional(readOnly = true)
     public Page<LeadResponse> search(UUID assignedTo, LeadStage stage, Pageable pageable) {
-        return leadRepository.search(TenantContext.tenantId(), assignedTo, stage, pageable)
+        // Corretor enxerga apenas os proprios leads, ignorando qualquer filtro assignedTo enviado.
+        UUID effectiveAssignedTo = isCorretor() ? TenantContext.userId() : assignedTo;
+        return leadRepository.search(TenantContext.tenantId(), effectiveAssignedTo, stage, pageable)
                 .map(leadMapper::toResponseDTO);
     }
 
@@ -48,6 +53,7 @@ public class LeadService {
     @Transactional
     public LeadResponse create(LeadRequest request) {
         UUID assignedTo = request.assignedTo() != null ? request.assignedTo() : TenantContext.userId();
+        requireNotReassigningToOthers(assignedTo);
         validateAgentExists(assignedTo);
         Lead lead = Lead.builder()
                 .id(UUID.randomUUID())
@@ -74,6 +80,7 @@ public class LeadService {
         lead.setSource(request.source());
         lead.setNotes(request.notes());
         if (request.assignedTo() != null) {
+            requireNotReassigningToOthers(request.assignedTo());
             validateAgentExists(request.assignedTo());
             lead.setAssignedTo(request.assignedTo());
         }
@@ -85,6 +92,11 @@ public class LeadService {
         Lead lead = findOwned(id);
         LeadStage previousStage = lead.getStage();
         boolean movingToFechado = stage == LeadStage.FECHADO && previousStage != LeadStage.FECHADO;
+        if (movingToFechado && lead.getPropertiesOfInterest().isEmpty()) {
+            throw new BusinessException(
+                    "Associe ao menos um imovel de interesse ao lead antes de move-lo para FECHADO",
+                    "LEAD_FECHADO_SEM_IMOVEL");
+        }
         lead.setStage(stage);
         Lead saved = leadRepository.save(lead);
         log.info("Lead {} mudou de estagio: {} -> {}", saved.getId(), previousStage, stage);
@@ -99,10 +111,6 @@ public class LeadService {
     }
 
     private void createDraftContractFromLead(Lead lead) {
-        if (lead.getPropertiesOfInterest().isEmpty()) {
-            log.warn("Lead {} fechado sem imoveis de interesse; rascunho de contrato nao foi gerado", lead.getId());
-            return;
-        }
         Property property = lead.getPropertiesOfInterest().iterator().next();
         ContractType type = property.getPurpose() == PropertyPurpose.ALUGUEL
                 ? ContractType.LOCACAO
@@ -153,9 +161,25 @@ public class LeadService {
         return leadMapper.toResponseDTO(leadRepository.save(lead));
     }
 
+    /**
+     * Busca o lead do tenant atual. Para CORRETOR, lead de outro corretor responde 404
+     * (mesmo que se o lead nao existisse), sem revelar a existencia do registro.
+     */
     private Lead findOwned(UUID id) {
         return leadRepository.findByIdAndTenantId(id, TenantContext.tenantId())
+                .filter(lead -> !isCorretor() || lead.getAssignedTo().equals(TenantContext.userId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Lead", id));
+    }
+
+    private boolean isCorretor() {
+        return TenantContext.role() == Role.CORRETOR;
+    }
+
+    /** Corretor so pode atribuir leads a si mesmo; reatribuir e prerrogativa do Admin. */
+    private void requireNotReassigningToOthers(UUID agentId) {
+        if (isCorretor() && !agentId.equals(TenantContext.userId())) {
+            throw new ForbiddenException("Corretor nao pode atribuir leads a outro corretor");
+        }
     }
 
     private void validateAgentExists(UUID agentId) {

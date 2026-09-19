@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -20,6 +21,14 @@ public class GlobalExceptionHandler {
         log.warn("{}: {}", ex.getCode(), ex.getMessage());
         return ResponseEntity.status(ex.getStatus())
                 .body(new ErrorResponse(ex.getMessage(), ex.getCode()));
+    }
+
+    /** Negacao do @PreAuthorize: sem este handler ela cairia no handler generico e viraria 500. */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Acesso negado: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse("Acesso negado", "FORBIDDEN"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
