@@ -208,7 +208,7 @@ com.imobcrm
     ├── domain/       # Entidade, Service, interface XRepository, enums/
     └── infra/        # JpaXRepository, XMapper (MapStruct)
 ```
-Detalhes e regras de dependência entre camadas: `.claude/architecture.md`.
+Detalhes e regras de dependência entre camadas: `docs/architecture.md`.
 
 ### Estrutura de pastas (frontend)
 ```

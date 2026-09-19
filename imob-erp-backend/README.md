@@ -30,7 +30,7 @@ Plataforma SaaS multi-tenant que integra CRM (pipeline de leads, visitas) e ERP 
 
 ## Arquitetura
 
-Monólito modular, **package-by-feature**, com três sub-camadas por módulo (detalhes em `.claude/architecture.md`):
+Monólito modular, **package-by-feature**, com três sub-camadas por módulo (detalhes em `docs/architecture.md`):
 
 ```
 api/      →  Controller + DTOs (XRequest / XResponse): entrada HTTP, validação, serialização
