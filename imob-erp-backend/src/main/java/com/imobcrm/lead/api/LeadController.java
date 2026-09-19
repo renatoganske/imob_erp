@@ -21,7 +21,7 @@ public class LeadController {
     private final LeadService leadService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'CORRETOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CORRETOR', 'FINANCEIRO')")
     public Page<LeadResponse> search(
             @RequestParam(required = false) UUID assignedTo,
             @RequestParam(required = false) LeadStage stage,
@@ -30,7 +30,7 @@ public class LeadController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'CORRETOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CORRETOR', 'FINANCEIRO')")
     public LeadResponse findById(@PathVariable UUID id) {
         return leadService.findById(id);
     }
