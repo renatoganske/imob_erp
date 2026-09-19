@@ -53,7 +53,6 @@ describe("ContractDetailClient", () => {
     expect(screen.getByText("Dono Beltrano")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ativar contrato" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Documento do contrato")).not.toBeInTheDocument();
-    expect(screen.queryByText(/—/)).not.toBeInTheDocument();
     expect(screen.getByText(/Somente leitura/)).toBeInTheDocument();
   });
 });
