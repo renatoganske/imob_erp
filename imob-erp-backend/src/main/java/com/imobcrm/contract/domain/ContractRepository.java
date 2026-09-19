@@ -14,6 +14,6 @@ public interface ContractRepository {
 
     Optional<Contract> findByIdAndTenantId(UUID id, UUID tenantId);
 
-    Page<Contract> search(UUID tenantId, ContractStatus status,
+    Page<Contract> search(UUID tenantId, UUID agentId, ContractStatus status,
                            ContractType type, Pageable pageable);
 }

@@ -9,13 +9,16 @@ import { ActivateContractDialog } from "@/components/contratos/ActivateContractD
 import { ContractDocumentUpload } from "@/components/contratos/ContractDocumentUpload";
 import { ContractStatusBadge } from "@/components/contratos/ContractStatusBadge";
 import { useContractMutations } from "@/hooks/useContracts";
+import { useRole } from "@/hooks/useRole";
 import { ApiRequestError, api } from "@/lib/api";
 import { CONTRACT_TYPE_LABEL } from "@/lib/labels";
+import { canManageContracts } from "@/lib/permissions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Contract } from "@/types/contract";
 
 export function ContractDetailClient({ id }: { id: string }) {
   const { getToken } = useAuth();
+  const canManage = canManageContracts(useRole());
   const { updateStatus } = useContractMutations();
   const [contract, setContract] = useState<Contract | null>(null);
   const [error, setError] = useState<{ message: string; code?: string } | null>(null);
@@ -67,7 +70,7 @@ export function ContractDetailClient({ id }: { id: string }) {
               <Badge variant="success">Comissão calculada</Badge>
             </>
           )}
-          {contract.status === "RASCUNHO" && <Button onClick={() => setConfirming(true)}>Ativar contrato</Button>}
+          {canManage && contract.status === "RASCUNHO" && <Button onClick={() => setConfirming(true)}>Ativar contrato</Button>}
         </div>
       </div>
 
@@ -85,11 +88,11 @@ export function ContractDetailClient({ id }: { id: string }) {
       <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
         <div>
           <p className="text-muted-foreground">Comprador/Locatário</p>
-          <p>{contract.buyerName} — {contract.buyerDocument}</p>
+          <p>{contract.buyerName}{contract.buyerDocument ? ` — ${contract.buyerDocument}` : ""}</p>
         </div>
         <div>
           <p className="text-muted-foreground">Proprietário</p>
-          <p>{contract.ownerName} — {contract.ownerDocument}</p>
+          <p>{contract.ownerName}{contract.ownerDocument ? ` — ${contract.ownerDocument}` : ""}</p>
         </div>
       </div>
       {contract.status === "ATIVO" && (
@@ -97,14 +100,22 @@ export function ContractDetailClient({ id }: { id: string }) {
           Ver parcelas em Financeiro
         </Link>
       )}
-      <ContractDocumentUpload contractId={contract.id} documentUrl={contract.documentUrl} onUploaded={load} />
-      <ActivateContractDialog
-        contract={contract}
-        open={confirming}
-        loading={activating}
-        onConfirm={handleActivate}
-        onCancel={() => setConfirming(false)}
-      />
+      {canManage ? (
+        <>
+          <ContractDocumentUpload contractId={contract.id} documentUrl={contract.documentUrl} onUploaded={load} />
+          <ActivateContractDialog
+            contract={contract}
+            open={confirming}
+            loading={activating}
+            onConfirm={handleActivate}
+            onCancel={() => setConfirming(false)}
+          />
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Somente leitura. CPF/CNPJ e o PDF do contrato ficam restritos ao Admin e ao Financeiro.
+        </p>
+      )}
     </div>
   );
 }

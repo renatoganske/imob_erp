@@ -15,12 +15,16 @@ export interface Contract {
   endDate?: string;
   adjustmentIndex?: AdjustmentIndex;
   buyerName: string;
-  buyerDocument: string;
+  // CPF/CNPJ e URL do PDF não vêm para o corretor (IMOB-35): opcionais na leitura.
+  buyerDocument?: string;
   ownerName: string;
-  ownerDocument: string;
+  ownerDocument?: string;
   documentUrl?: string;
   commissionRateOverride?: number;
   notes?: string;
 }
 
-export type ContractRequest = Omit<Contract, "id" | "status" | "documentUrl">;
+export type ContractRequest = Omit<Contract, "id" | "status" | "documentUrl" | "buyerDocument" | "ownerDocument"> & {
+  buyerDocument: string;
+  ownerDocument: string;
+};

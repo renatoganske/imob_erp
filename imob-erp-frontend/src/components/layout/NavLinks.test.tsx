@@ -12,20 +12,17 @@ describe("NavLinks", () => {
     role.current = undefined;
   });
 
-  it.each<Role>(["ADMIN", "FINANCEIRO"])("mostra Contratos para %s", (r) => {
+  it.each<Role>(["ADMIN", "FINANCEIRO", "CORRETOR"])("mostra Contratos para %s", (r) => {
     role.current = r;
     render(<NavLinks />);
     expect(screen.getByRole("link", { name: "Contratos" })).toBeInTheDocument();
   });
 
-  it.each<[string, Role | undefined]>([["CORRETOR", "CORRETOR"], ["papel ausente", undefined]])(
-    "esconde Contratos para %s, mantendo os demais itens",
-    (_, r) => {
-      role.current = r;
-      render(<NavLinks />);
-      expect(screen.queryByRole("link", { name: "Contratos" })).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Leads" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Financeiro" })).toBeInTheDocument();
-    }
-  );
+  it("esconde Contratos com papel ausente, mantendo os demais itens", () => {
+    role.current = undefined;
+    render(<NavLinks />);
+    expect(screen.queryByRole("link", { name: "Contratos" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Leads" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Financeiro" })).toBeInTheDocument();
+  });
 });

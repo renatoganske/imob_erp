@@ -9,9 +9,12 @@ import { EmptyState, ListSkeleton } from "@/components/ui/state";
 import { ContractFilters } from "@/components/contratos/ContractFilters";
 import { ContractList } from "@/components/contratos/ContractList";
 import { useContracts } from "@/hooks/useContracts";
+import { useRole } from "@/hooks/useRole";
+import { canManageContracts } from "@/lib/permissions";
 import { CONTRACTS_PAGE_SIZE, filterByPeriod, type ContractFilterValues } from "@/lib/contracts";
 
 export default function ContractsPage() {
+  const canManage = canManageContracts(useRole());
   const [filters, setFilters] = useState<ContractFilterValues>({});
   const { data, loading } = useContracts({ status: filters.status, type: filters.type, size: CONTRACTS_PAGE_SIZE });
   const contracts = useMemo(() => filterByPeriod(data?.content ?? [], filters.from, filters.to), [data, filters.from, filters.to]);
@@ -21,14 +24,18 @@ export default function ContractsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Contratos"
-        description="Vendas e locações em andamento e encerradas."
+        description={
+          canManage ? "Vendas e locações em andamento e encerradas." : "Os contratos em que você é o corretor responsável."
+        }
         actions={
-          <Button asChild>
-            <Link href="/contratos/novo">
-              <Plus className="h-4 w-4" />
-              Novo contrato
-            </Link>
-          </Button>
+          canManage ? (
+            <Button asChild>
+              <Link href="/contratos/novo">
+                <Plus className="h-4 w-4" />
+                Novo contrato
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
       <ContractFilters filters={filters} onChange={setFilters} />
@@ -37,7 +44,13 @@ export default function ContractsPage() {
         <EmptyState
           icon={FileText}
           title={filtering ? "Nenhum contrato encontrado" : "Nenhum contrato ainda"}
-          description={filtering ? "Ajuste os filtros para ver outros contratos." : "Crie o primeiro contrato a partir de um imóvel e um cliente."}
+          description={
+            filtering
+              ? "Ajuste os filtros para ver outros contratos."
+              : canManage
+                ? "Crie o primeiro contrato a partir de um imóvel e um cliente."
+                : "Quando um lead seu for fechado, o contrato aparece aqui."
+          }
         />
       )}
       {data && contracts.length > 0 && <ContractList contracts={contracts} />}

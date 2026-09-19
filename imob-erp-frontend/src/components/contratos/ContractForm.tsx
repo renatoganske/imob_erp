@@ -32,7 +32,12 @@ function withoutUndefined(prefill: ContractPrefill = {}): Partial<ContractReques
 export function ContractForm({ contract, prefill }: { contract?: Contract; prefill?: ContractPrefill }) {
   const router = useRouter();
   const { create, update } = useContractMutations();
-  const [form, setForm] = useState<ContractRequest>(contract ?? { ...EMPTY, ...withoutUndefined(prefill) });
+  // Na edição (Admin/Financeiro) o backend devolve os documentos; o tipo de leitura os deixa opcionais.
+  const [form, setForm] = useState<ContractRequest>(
+    contract
+      ? { ...contract, buyerDocument: contract.buyerDocument ?? "", ownerDocument: contract.ownerDocument ?? "" }
+      : { ...EMPTY, ...withoutUndefined(prefill) }
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

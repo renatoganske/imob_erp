@@ -1,5 +1,11 @@
 package com.imobcrm.contract.domain;
 
+import com.imobcrm.contract.api.ContractResponse;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import java.util.List;
+import java.util.Optional;
 import com.imobcrm.commission.domain.CommissionService;
 import com.imobcrm.contract.api.ContractRequest;
 import com.imobcrm.contract.domain.enums.ContractStatus;
@@ -180,6 +186,80 @@ class ContractServiceTest {
                 .startDate(LocalDate.now())
                 .commissionRateOverride(rateOverride)
                 .build();
+    }
+
+    // ---- leitura pelo corretor (IMOB-35) ----
+
+    private Contract contractOf(UUID agent) {
+        return Contract.builder().id(UUID.randomUUID()).tenantId(tenantId).agentId(agent).build();
+    }
+
+    private ContractResponse fullResponse(Contract c) {
+        return new ContractResponse(c.getId(), null, propertyId, c.getAgentId(), ContractType.COMPRA_VENDA, null,
+                new BigDecimal("500000"), null, LocalDate.now(), null, null, "Comprador", "111", "Dono", "222",
+                "http://r2/doc.pdf", null, "obs");
+    }
+
+    private void loginAs(Role role, UUID userId) {
+        TenantContext.set(new TenantContext.RequestPrincipal(tenantId, userId, "clerk_" + userId, role));
+    }
+
+    @Test
+    void search_forCorretorScopesToOwnContractsAndMasksSensitiveData() {
+        UUID corretorId = UUID.randomUUID();
+        loginAs(Role.CORRETOR, corretorId);
+        Contract own = contractOf(corretorId);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(contractRepository.search(tenantId, corretorId, null, null, pageable)).thenReturn(new PageImpl<>(List.of(own)));
+        when(contractMapper.toResponseDTO(own)).thenReturn(fullResponse(own));
+
+        ContractResponse result = contractService.search(null, null, pageable).getContent().get(0);
+
+        assertThat(result.buyerName()).isEqualTo("Comprador");
+        assertThat(result.buyerDocument()).isNull();
+        assertThat(result.ownerDocument()).isNull();
+        assertThat(result.documentUrl()).isNull();
+    }
+
+    @Test
+    void search_forAdminAndFinanceiroIsNotScopedByAgentAndKeepsSensitiveData() {
+        for (Role role : new Role[]{Role.ADMIN, Role.FINANCEIRO}) {
+            loginAs(role, UUID.randomUUID());
+            Contract any = contractOf(UUID.randomUUID());
+            Pageable pageable = PageRequest.of(0, 20);
+            when(contractRepository.search(tenantId, null, null, null, pageable)).thenReturn(new PageImpl<>(List.of(any)));
+            when(contractMapper.toResponseDTO(any)).thenReturn(fullResponse(any));
+
+            ContractResponse result = contractService.search(null, null, pageable).getContent().get(0);
+
+            assertThat(result.buyerDocument()).isEqualTo("111");
+            assertThat(result.documentUrl()).isEqualTo("http://r2/doc.pdf");
+        }
+    }
+
+    @Test
+    void findById_forCorretorHidesAnotherAgentsContractAsNotFound() {
+        loginAs(Role.CORRETOR, UUID.randomUUID());
+        Contract foreign = contractOf(UUID.randomUUID());
+        when(contractRepository.findByIdAndTenantId(foreign.getId(), tenantId)).thenReturn(Optional.of(foreign));
+
+        assertThatThrownBy(() -> contractService.findById(foreign.getId())).isInstanceOf(ResourceNotFoundException.class);
+        verify(contractMapper, never()).toResponseDTO(any());
+    }
+
+    @Test
+    void findById_forCorretorReturnsOwnContractWithoutSensitiveData() {
+        UUID corretorId = UUID.randomUUID();
+        loginAs(Role.CORRETOR, corretorId);
+        Contract own = contractOf(corretorId);
+        when(contractRepository.findByIdAndTenantId(own.getId(), tenantId)).thenReturn(Optional.of(own));
+        when(contractMapper.toResponseDTO(own)).thenReturn(fullResponse(own));
+
+        ContractResponse result = contractService.findById(own.getId());
+
+        assertThat(result.buyerDocument()).isNull();
+        assertThat(result.documentUrl()).isNull();
+        assertThat(result.notes()).isEqualTo("obs");
     }
 
     private ContractRequest request(UUID lead) {

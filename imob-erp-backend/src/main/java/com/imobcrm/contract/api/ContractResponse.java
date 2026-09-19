@@ -27,4 +27,13 @@ public record ContractResponse(
         BigDecimal commissionRateOverride,
         String notes
 ) {
+
+    /**
+     * Copia sem os dados sensiveis (CPF/CNPJ das partes e URL do PDF assinado), usada quando o
+     * leitor e o corretor responsavel: ele acompanha o contrato, mas nao recebe documentos pessoais.
+     */
+    public ContractResponse withoutSensitiveData() {
+        return new ContractResponse(id, leadId, propertyId, agentId, type, status, value, signedAt, startDate,
+                endDate, adjustmentIndex, buyerName, null, ownerName, null, null, commissionRateOverride, notes);
+    }
 }

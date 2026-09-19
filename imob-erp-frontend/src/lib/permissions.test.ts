@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAccessPath, canManageContracts, parseRole } from "./permissions";
+import { canAccessPath, canManageContracts, canReadContracts, parseRole } from "./permissions";
 
 describe("parseRole", () => {
   it("aceita os papéis conhecidos e descarta o resto", () => {
@@ -21,12 +21,32 @@ describe("canManageContracts", () => {
   });
 });
 
+describe("canReadContracts", () => {
+  it("libera os três papéis; nega papel ausente", () => {
+    expect(canReadContracts("ADMIN")).toBe(true);
+    expect(canReadContracts("FINANCEIRO")).toBe(true);
+    expect(canReadContracts("CORRETOR")).toBe(true);
+    expect(canReadContracts(undefined)).toBe(false);
+  });
+});
+
 describe("canAccessPath", () => {
-  it("bloqueia /contratos e subrotas para CORRETOR e papel ausente", () => {
+  it("CORRETOR lê a lista e o detalhe, mas não acessa a criação", () => {
+    expect(canAccessPath("CORRETOR", "/contratos")).toBe(true);
+    expect(canAccessPath("CORRETOR", "/contratos/abc")).toBe(true);
+    expect(canAccessPath("CORRETOR", "/contratos/novo")).toBe(false);
+    expect(canAccessPath("CORRETOR", "/contratos/novo/qualquer")).toBe(false);
+  });
+  it("papel ausente não acessa nenhuma rota de contratos", () => {
     for (const path of ["/contratos", "/contratos/novo", "/contratos/abc"]) {
-      expect(canAccessPath("CORRETOR", path)).toBe(false);
       expect(canAccessPath(undefined, path)).toBe(false);
-      expect(canAccessPath("ADMIN", path)).toBe(true);
+    }
+  });
+  it("ADMIN e FINANCEIRO acessam todas as rotas de contratos", () => {
+    for (const role of ["ADMIN", "FINANCEIRO"] as const) {
+      for (const path of ["/contratos", "/contratos/novo", "/contratos/abc"]) {
+        expect(canAccessPath(role, path)).toBe(true);
+      }
     }
   });
   it("não afeta outras rotas nem prefixos parecidos", () => {

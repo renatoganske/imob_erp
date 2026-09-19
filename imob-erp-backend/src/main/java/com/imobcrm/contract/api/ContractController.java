@@ -18,12 +18,13 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/contracts")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'FINANCEIRO')")
 public class ContractController {
 
     private final ContractService contractService;
 
+    // Leitura tambem para CORRETOR, restrita no service aos contratos dele e sem dados sensiveis (IMOB-35).
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCEIRO', 'CORRETOR')")
     public Page<ContractResponse> search(
             @RequestParam(required = false) ContractStatus status,
             @RequestParam(required = false) ContractType type,
@@ -32,26 +33,31 @@ public class ContractController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCEIRO', 'CORRETOR')")
     public ContractResponse findById(@PathVariable UUID id) {
         return contractService.findById(id);
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCEIRO')")
     public ResponseEntity<ContractResponse> create(@Valid @RequestBody ContractRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(contractService.create(request));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCEIRO')")
     public ContractResponse update(@PathVariable UUID id, @Valid @RequestBody ContractRequest request) {
         return contractService.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCEIRO')")
     public ContractResponse updateStatus(@PathVariable UUID id, @Valid @RequestBody ContractStatusRequest request) {
         return contractService.updateStatus(id, request.status());
     }
 
     @PostMapping("/{id}/document")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCEIRO')")
     public ContractResponse uploadDocument(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
         return contractService.uploadDocument(id, file);
     }
