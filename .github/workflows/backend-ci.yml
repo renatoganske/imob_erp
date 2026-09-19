@@ -15,6 +15,7 @@ concurrency:
 
 permissions:
   contents: read
+  checks: write # dorny/test-reporter publica o resumo como check run
 
 defaults:
   run:
@@ -124,5 +125,5 @@ jobs:
           name: Testes unitários e de integração
           path: |
             imob-erp-backend/target/surefire-reports/*.xml
-          reporter: junit
+          reporter: java-junit
           fail-on-error: false
