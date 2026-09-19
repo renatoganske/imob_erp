@@ -168,6 +168,17 @@ Health check: `http://localhost:8080/actuator/health`
 | `R2_SECRET_ACCESS_KEY` | Secret Key do R2 | ✅ |
 | `R2_BUCKET_NAME` | Nome do bucket R2 | ✅ |
 | `R2_PUBLIC_URL` | URL pública do bucket R2 | ✅ |
+| `APP_SEED_ENABLED` | Aplica os dados de exemplo ao subir no perfil `dev` (padrão: `true`; nunca roda em prod/test) | ❌ |
+| `APP_SEED_TENANT_SLUG` | Tenant que recebe os dados de exemplo (padrão: `imobiliaria-dev`; criado se não existir) | ❌ |
+| `APP_SEED_ADMIN_CLERK_ID` | Se informado, o seed também cria um admin com esse `clerk_user_id` | ❌ |
+
+### Dados de exemplo (seed de desenvolvimento)
+
+No perfil `dev`, ao subir o backend é aplicada uma base mínima no tenant `APP_SEED_TENANT_SLUG`: 3 corretores (comissão 3%, 4% e 5%) e 1 financeiro, 6 imóveis (venda, aluguel e ambos), 8 leads em todas as etapas, 4 visitas, 3 contratos (venda ativa, locação ativa e rascunho), 2 comissões e 7 lançamentos financeiros (pago, pendente e atrasado).
+
+- É **idempotente**: se o corretor `seed_corretor_1` já existe, nada é feito. Para reaplicar, apague os dados do tenant (ou recrie o banco) e suba de novo.
+- Os usuários de seed usam `clerk_user_id` fictício (`seed_*`) e **não fazem login**. Para navegar na UI, use o seu usuário Clerk já vinculado ao tenant (o `publicMetadata.tenantId` do Clerk deve ser o id do tenant `APP_SEED_TENANT_SLUG`).
+- Código em `shared/seed/DevDataSeeder.java`.
 
 ---
 
