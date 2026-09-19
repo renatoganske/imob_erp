@@ -20,9 +20,11 @@ public interface JpaContractRepository extends JpaRepository<Contract, UUID>, Co
     @Query("""
             SELECT c FROM Contract c
             WHERE c.tenantId = :tenantId
+              AND (:agentId IS NULL OR c.agentId = :agentId)
               AND (:status IS NULL OR c.status = :status)
               AND (:type IS NULL OR c.type = :type)
             """)
-    Page<Contract> search(@Param("tenantId") UUID tenantId, @Param("status") ContractStatus status,
+    Page<Contract> search(@Param("tenantId") UUID tenantId, @Param("agentId") UUID agentId,
+                           @Param("status") ContractStatus status,
                            @Param("type") ContractType type, Pageable pageable);
 }

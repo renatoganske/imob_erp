@@ -21,6 +21,7 @@ import com.imobcrm.storage.UploadValidator;
 import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.user.domain.User;
 import com.imobcrm.user.domain.UserRepository;
+import com.imobcrm.user.domain.enums.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -52,13 +53,29 @@ public class ContractService {
 
     @Transactional(readOnly = true)
     public Page<ContractResponse> search(ContractStatus status, ContractType type, Pageable pageable) {
-        return contractRepository.search(TenantContext.tenantId(), status, type, pageable)
-                .map(contractMapper::toResponseDTO);
+        // Corretor enxerga apenas os contratos em que e o corretor responsavel.
+        UUID agentScope = isCorretor() ? TenantContext.userId() : null;
+        return contractRepository.search(TenantContext.tenantId(), agentScope, status, type, pageable)
+                .map(this::toReadResponse);
     }
 
     @Transactional(readOnly = true)
     public ContractResponse findById(UUID id) {
-        return contractMapper.toResponseDTO(findOwned(id));
+        Contract contract = findOwned(id);
+        if (isCorretor() && !contract.getAgentId().equals(TenantContext.userId())) {
+            // 404, igual a um contrato inexistente, para nao revelar a existencia do registro
+            throw new ResourceNotFoundException("Contrato", id);
+        }
+        return toReadResponse(contract);
+    }
+
+    private ContractResponse toReadResponse(Contract contract) {
+        ContractResponse response = contractMapper.toResponseDTO(contract);
+        return isCorretor() ? response.withoutSensitiveData() : response;
+    }
+
+    private boolean isCorretor() {
+        return TenantContext.role() == Role.CORRETOR;
     }
 
     @Transactional
