@@ -4,6 +4,7 @@ import com.imobcrm.property.domain.enums.PropertyStatus;
 import com.imobcrm.property.infra.PropertyMapper;
 import com.imobcrm.shared.exception.ResourceNotFoundException;
 import com.imobcrm.storage.R2StorageService;
+import com.imobcrm.storage.UploadValidator;
 import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.user.domain.enums.Role;
 import org.junit.jupiter.api.AfterEach;
@@ -38,7 +39,7 @@ class PropertyServiceTest {
     @BeforeEach
     void setUp() {
         PropertyMapper mapper = Mappers.getMapper(PropertyMapper.class);
-        propertyService = new PropertyService(propertyRepository, mapper, storageService);
+        propertyService = new PropertyService(propertyRepository, mapper, storageService, new UploadValidator());
         TenantContext.set(new TenantContext.RequestPrincipal(tenantId, UUID.randomUUID(), "clerk_1", Role.ADMIN));
     }
 
