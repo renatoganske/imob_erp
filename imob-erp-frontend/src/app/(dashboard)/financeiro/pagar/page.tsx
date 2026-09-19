@@ -1,7 +1,10 @@
 "use client";
 
+import { Receipt } from "lucide-react";
 import { EntryForm } from "@/components/financeiro/EntryForm";
 import { EntryList } from "@/components/financeiro/EntryList";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ListSkeleton } from "@/components/ui/state";
 import { useFinancialEntries, useFinancialMutations } from "@/hooks/useFinancial";
 
 export default function AccountsPayablePage() {
@@ -20,10 +23,13 @@ export default function AccountsPayablePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Contas a pagar</h1>
-      <EntryForm onCreated={reload} />
-      {loading && <p className="text-muted-foreground">Carregando...</p>}
-      {data && <EntryList entries={data.content} onPay={handlePay} onCancel={handleCancel} />}
+      <PageHeader title="Contas a pagar" description="Despesas, repasses e comissões a pagar." />
+      <EntryForm type="DESPESA" onCreated={reload} />
+      {loading && <ListSkeleton />}
+      {data && data.content.length === 0 && (
+        <EmptyState icon={Receipt} title="Nenhuma conta a pagar" description="Lance a primeira despesa no formulário acima." />
+      )}
+      {data && data.content.length > 0 && <EntryList entries={data.content} onPay={handlePay} onCancel={handleCancel} />}
     </div>
   );
 }

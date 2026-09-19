@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { ApiRequestError } from "@/lib/api";
 import { usePropertyMutations } from "@/hooks/useProperties";
 import type { Property, PropertyRequest } from "@/types/property";
 
@@ -28,13 +30,17 @@ export function PropertyForm({ property }: { property?: Property }) {
   const { create, update } = usePropertyMutations();
   const [form, setForm] = useState<PropertyRequest>(property ?? EMPTY);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setError(null);
     try {
       const saved = property ? await update(property.id, form) : await create(form);
       router.push(`/imoveis/${saved.id}`);
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : "Não foi possível salvar o imóvel");
     } finally {
       setSubmitting(false);
     }
@@ -50,9 +56,9 @@ export function PropertyForm({ property }: { property?: Property }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="type">Tipo</Label>
-          <select
+          <Select
             id="type"
-            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+            className="w-full"
             value={form.type}
             onChange={(e) => setForm({ ...form, type: e.target.value as PropertyRequest["type"] })}
           >
@@ -60,20 +66,20 @@ export function PropertyForm({ property }: { property?: Property }) {
             <option value="APARTAMENTO">Apartamento</option>
             <option value="COMERCIAL">Comercial</option>
             <option value="TERRENO">Terreno</option>
-          </select>
+          </Select>
         </div>
         <div>
           <Label htmlFor="purpose">Finalidade</Label>
-          <select
+          <Select
             id="purpose"
-            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+            className="w-full"
             value={form.purpose}
             onChange={(e) => setForm({ ...form, purpose: e.target.value as PropertyRequest["purpose"] })}
           >
             <option value="VENDA">Venda</option>
             <option value="ALUGUEL">Aluguel</option>
             <option value="AMBOS">Ambos</option>
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -127,11 +133,17 @@ export function PropertyForm({ property }: { property?: Property }) {
         <Label htmlFor="description">Descrição</Label>
         <textarea
           id="description"
-          className="min-h-24 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+          className="min-h-24 w-full rounded-md border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
           value={form.description ?? ""}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
         />
       </div>
+
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
 
       <Button type="submit" disabled={submitting}>
         {submitting ? "Salvando..." : "Salvar"}

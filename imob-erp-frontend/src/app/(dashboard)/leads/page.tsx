@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { ListSkeleton } from "@/components/ui/state";
 import { LeadFormModal } from "@/components/leads/LeadFormModal";
 import { LeadKanban } from "@/components/leads/LeadKanban";
 import { useLeadMutations, useLeads } from "@/hooks/useLeads";
@@ -18,11 +21,17 @@ export default function LeadsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Leads</h1>
-        <Button onClick={() => setCreating(true)}>Novo lead</Button>
-      </div>
-      {loading && <p className="text-muted-foreground">Carregando...</p>}
+      <PageHeader
+        title="Leads"
+        description="Acompanhe cada contato do primeiro atendimento ao fechamento."
+        actions={
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" />
+            Novo lead
+          </Button>
+        }
+      />
+      {loading && <ListSkeleton rows={4} />}
       {data && <LeadKanban leads={data.content} onMoveStage={handleMoveStage} />}
       <LeadFormModal
         open={creating}

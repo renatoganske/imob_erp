@@ -1,19 +1,34 @@
 import { Badge } from "@/components/ui/badge";
-import { formatDate } from "@/lib/utils";
+import { VISIT_STATUS_LABEL } from "@/lib/labels";
 import type { Visit } from "@/types/visit";
 
-export function VisitCard({ visit, onOpen }: { visit: Visit; onOpen: () => void }) {
+const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
+
+export function VisitCard({
+  visit,
+  propertyTitle,
+  leadName,
+  onOpen,
+}: {
+  visit: Visit;
+  propertyTitle?: string;
+  leadName?: string;
+  onOpen: () => void;
+}) {
   return (
     <button
       onClick={onOpen}
-      className="flex w-full items-center justify-between rounded-md border border-border p-3 text-left text-sm hover:bg-secondary"
+      className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left text-sm shadow-card transition-colors hover:border-primary/40"
     >
-      <div>
-        <p className="font-medium">Visita — {formatDate(visit.scheduledAt)}</p>
-        <p className="text-muted-foreground">Imóvel {visit.propertyId.slice(0, 8)}</p>
+      <div className="min-w-0">
+        <p className="font-medium">{propertyTitle ?? "Imóvel"}</p>
+        <p className="text-muted-foreground">
+          {leadName ? `${leadName} · ` : ""}
+          {dateTime.format(new Date(visit.scheduledAt))}
+        </p>
       </div>
-      <Badge variant={visit.status === "REALIZADA" ? "success" : visit.status === "CANCELADA" ? "destructive" : "secondary"}>
-        {visit.status}
+      <Badge variant={visit.status === "REALIZADA" ? "success" : visit.status === "CANCELADA" ? "destructive" : "info"}>
+        {VISIT_STATUS_LABEL[visit.status]}
       </Badge>
     </button>
   );

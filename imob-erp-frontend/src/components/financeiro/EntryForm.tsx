@@ -2,65 +2,91 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { ApiRequestError } from "@/lib/api";
 import { useFinancialMutations } from "@/hooks/useFinancial";
-import type { FinancialEntryRequest } from "@/types/financial";
+import { ENTRY_CATEGORY_LABEL } from "@/lib/labels";
+import { todayLocal } from "@/lib/utils";
+import type { FinancialCategory, FinancialType } from "@/types/financial";
 
-const EMPTY: FinancialEntryRequest = {
-  type: "RECEITA",
-  category: "OUTRO",
-  description: "",
-  value: 0,
-  dueDate: new Date().toISOString().slice(0, 10),
+const CATEGORIES: Record<FinancialType, FinancialCategory[]> = {
+  RECEITA: ["ALUGUEL", "PARCELA_VENDA", "TAXA_ADMINISTRACAO", "OUTRO"],
+  DESPESA: ["REPASSE_PROPRIETARIO", "COMISSAO", "DESPESA_OPERACIONAL", "OUTRO"],
 };
 
-export function EntryForm({ onCreated }: { onCreated: () => void }) {
+// O tipo vem da tela (receber = receita, pagar = despesa): não é uma escolha do usuário.
+export function EntryForm({ type, onCreated }: { type: FinancialType; onCreated: () => void }) {
   const { create } = useFinancialMutations();
-  const [form, setForm] = useState<FinancialEntryRequest>(EMPTY);
+  const empty = () => ({ category: "OUTRO" as FinancialCategory, description: "", value: "", dueDate: todayLocal() });
+  const [form, setForm] = useState(empty);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setError(null);
     try {
-      await create(form);
-      setForm(EMPTY);
+      await create({ type, category: form.category, description: form.description, value: Number(form.value), dueDate: form.dueDate });
+      setForm(empty());
       onCreated();
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : "Não foi possível salvar o lançamento");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
-      <div>
-        <Label htmlFor="type">Tipo</Label>
-        <select
-          id="type"
-          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
-          value={form.type}
-          onChange={(e) => setForm({ ...form, type: e.target.value as FinancialEntryRequest["type"] })}
-        >
-          <option value="RECEITA">Receita</option>
-          <option value="DESPESA">Despesa</option>
-        </select>
-      </div>
-      <div>
-        <Label htmlFor="description">Descrição</Label>
-        <Input id="description" required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-      </div>
-      <div>
-        <Label htmlFor="value">Valor</Label>
-        <Input id="value" type="number" required className="w-32" value={form.value} onChange={(e) => setForm({ ...form, value: Number(e.target.value) })} />
-      </div>
-      <div>
-        <Label htmlFor="dueDate">Vencimento</Label>
-        <Input id="dueDate" type="date" required value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
-      </div>
-      <Button type="submit" disabled={submitting}>
-        {submitting ? "Salvando..." : "Lançar"}
-      </Button>
-    </form>
+    <Card className="p-4">
+      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
+        <div className="flex min-w-56 flex-1 flex-col gap-1.5">
+          <Label htmlFor="description">Descrição</Label>
+          <Input id="description" required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="category">Categoria</Label>
+          <Select
+            id="category"
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value as FinancialCategory })}
+          >
+            {CATEGORIES[type].map((category) => (
+              <option key={category} value={category}>
+                {ENTRY_CATEGORY_LABEL[category]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="value">Valor (R$)</Label>
+          <Input
+            id="value"
+            type="number"
+            required
+            min="0.01"
+            step="0.01"
+            className="w-36"
+            value={form.value}
+            onChange={(e) => setForm({ ...form, value: e.target.value })}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="dueDate">Vencimento</Label>
+          <Input id="dueDate" type="date" required value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+        </div>
+        <Button type="submit" disabled={submitting}>
+          {submitting ? "Salvando..." : "Lançar"}
+        </Button>
+      </form>
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </Card>
   );
 }

@@ -1,14 +1,17 @@
 import { UserButton } from "@clerk/nextjs";
 import { MobileNav } from "./MobileNav";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Header() {
   return (
-    <header className="flex h-16 items-center justify-between gap-3 border-b border-border px-4 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <MobileNav />
-        <div className="truncate text-sm text-muted-foreground">Do lead ao recebimento, sem sair do sistema.</div>
       </div>
-      <UserButton afterSignOutUrl="/sign-in" />
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        <UserButton afterSignOutUrl="/sign-in" />
+      </div>
     </header>
   );
 }

@@ -1,4 +1,5 @@
 import { formatCurrency } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 import type { FinancialDashboard as Dashboard } from "@/types/financial";
 
 export function FinancialDashboard({ data }: { data: Dashboard }) {
@@ -12,12 +13,14 @@ export function FinancialDashboard({ data }: { data: Dashboard }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {cards.map((card) => (
-        <div key={card.label} className="rounded-lg border border-border p-4">
+        <Card key={card.label} className="p-4">
           <p className="text-sm text-muted-foreground">{card.label}</p>
-          <p className={`mt-1 text-2xl font-bold ${card.danger ? "text-destructive" : ""}`}>
+          <p
+            className={`mt-1 text-2xl font-semibold tabular-nums tracking-tight ${card.danger ? "text-danger" : ""}`}
+          >
             {formatCurrency(card.value)}
           </p>
-        </div>
+        </Card>
       ))}
     </div>
   );

@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { PropertySelect, UserSelect } from "@/components/shared/EntitySelects";
+import { ApiRequestError } from "@/lib/api";
+import { todayLocal } from "@/lib/utils";
 import { useContractMutations } from "@/hooks/useContracts";
 import type { Contract, ContractRequest } from "@/types/contract";
 
@@ -13,7 +17,7 @@ const EMPTY: ContractRequest = {
   agentId: "",
   type: "COMPRA_VENDA",
   value: 0,
-  startDate: new Date().toISOString().slice(0, 10),
+  startDate: todayLocal(),
   buyerName: "",
   buyerDocument: "",
   ownerName: "",
@@ -25,13 +29,17 @@ export function ContractForm({ contract }: { contract?: Contract }) {
   const { create, update } = useContractMutations();
   const [form, setForm] = useState<ContractRequest>(contract ?? EMPTY);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setError(null);
     try {
       const saved = contract ? await update(contract.id, form) : await create(form);
       router.push(`/contratos/${saved.id}`);
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : "Não foi possível salvar o contrato");
     } finally {
       setSubmitting(false);
     }
@@ -41,27 +49,27 @@ export function ContractForm({ contract }: { contract?: Contract }) {
     <form onSubmit={handleSubmit} className="flex max-w-xl flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="propertyId">Imóvel (ID)</Label>
-          <Input id="propertyId" required value={form.propertyId} onChange={(e) => setForm({ ...form, propertyId: e.target.value })} />
+          <Label htmlFor="propertyId">Imóvel</Label>
+          <PropertySelect id="propertyId" required onlyAvailable value={form.propertyId} onChange={(propertyId) => setForm((f) => ({ ...f, propertyId }))} />
         </div>
         <div>
-          <Label htmlFor="agentId">Corretor (ID)</Label>
-          <Input id="agentId" required value={form.agentId} onChange={(e) => setForm({ ...form, agentId: e.target.value })} />
+          <Label htmlFor="agentId">Corretor</Label>
+          <UserSelect id="agentId" required value={form.agentId} onChange={(agentId) => setForm((f) => ({ ...f, agentId }))} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="type">Tipo</Label>
-          <select
+          <Select
             id="type"
-            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+            className="w-full"
             value={form.type}
             onChange={(e) => setForm({ ...form, type: e.target.value as ContractRequest["type"] })}
           >
             <option value="COMPRA_VENDA">Compra e venda</option>
             <option value="LOCACAO">Locação</option>
-          </select>
+          </Select>
         </div>
         <div>
           <Label htmlFor="value">Valor</Label>
@@ -101,6 +109,12 @@ export function ContractForm({ contract }: { contract?: Contract }) {
           <Input id="ownerDocument" required value={form.ownerDocument} onChange={(e) => setForm({ ...form, ownerDocument: e.target.value })} />
         </div>
       </div>
+
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
 
       <Button type="submit" disabled={submitting}>
         {submitting ? "Salvando..." : "Salvar"}
