@@ -24,13 +24,18 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CommissionService {
 
+    // O PostgreSQL nao infere o tipo de um OffsetDateTime nulo em "(:from IS NULL OR ...)", entao o
+    // periodo aberto e representado por limites extremos em vez de parametros nulos.
+    private static final OffsetDateTime PERIOD_MIN = OffsetDateTime.parse("1970-01-01T00:00:00Z");
+    private static final OffsetDateTime PERIOD_MAX = OffsetDateTime.parse("9999-12-31T23:59:59Z");
+
     private final CommissionRepository commissionRepository;
     private final CommissionMapper commissionMapper;
 
     @Transactional(readOnly = true)
     public Page<CommissionResponse> search(UUID agentId, CommissionStatus status,
                                                 OffsetDateTime from, OffsetDateTime to, Pageable pageable) {
-        return commissionRepository.search(TenantContext.tenantId(), agentId, status, from, to, pageable)
+        return commissionRepository.search(TenantContext.tenantId(), agentId, status, orMin(from), orMax(to), pageable)
                 .map(commissionMapper::toResponseDTO);
     }
 
@@ -53,7 +58,7 @@ public class CommissionService {
 
     @Transactional(readOnly = true)
     public java.util.List<CommissionReportResponse> report(OffsetDateTime from, OffsetDateTime to) {
-        return commissionRepository.reportByAgent(TenantContext.tenantId(), from, to).stream()
+        return commissionRepository.reportByAgent(TenantContext.tenantId(), orMin(from), orMax(to)).stream()
                 .map(row -> new CommissionReportResponse(row.getAgentId(), row.getTotal()))
                 .toList();
     }
@@ -64,6 +69,10 @@ public class CommissionService {
      */
     @Transactional
     public void createFromContract(UUID contractId, UUID agentId, BigDecimal baseValue, BigDecimal rate) {
+        if (rate == null) {
+            log.warn("Comissao nao gerada para o contrato {}: corretor {} sem taxa de comissao definida", contractId, agentId);
+            return;
+        }
         BigDecimal value = baseValue.multiply(rate).divide(BigDecimal.valueOf(100));
         Commission commission = Commission.builder()
                 .id(UUID.randomUUID())
@@ -83,5 +92,13 @@ public class CommissionService {
     private Commission findOwned(UUID id) {
         return commissionRepository.findByIdAndTenantId(id, TenantContext.tenantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Comissao", id));
+    }
+
+    private static OffsetDateTime orMin(OffsetDateTime value) {
+        return value != null ? value : PERIOD_MIN;
+    }
+
+    private static OffsetDateTime orMax(OffsetDateTime value) {
+        return value != null ? value : PERIOD_MAX;
     }
 }

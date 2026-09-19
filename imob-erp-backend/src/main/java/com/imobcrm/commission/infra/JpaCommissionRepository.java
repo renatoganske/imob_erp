@@ -22,8 +22,8 @@ public interface JpaCommissionRepository extends JpaRepository<Commission, UUID>
             WHERE c.tenantId = :tenantId
               AND (:agentId IS NULL OR c.agentId = :agentId)
               AND (:status IS NULL OR c.status = :status)
-              AND (:from IS NULL OR c.createdAt >= :from)
-              AND (:to IS NULL OR c.createdAt <= :to)
+              AND c.createdAt >= :from
+              AND c.createdAt <= :to
             """)
     Page<Commission> search(
             @Param("tenantId") UUID tenantId,
@@ -36,8 +36,8 @@ public interface JpaCommissionRepository extends JpaRepository<Commission, UUID>
     @Query("""
             SELECT c.agentId AS agentId, SUM(c.value) AS total FROM Commission c
             WHERE c.tenantId = :tenantId
-              AND (:from IS NULL OR c.createdAt >= :from)
-              AND (:to IS NULL OR c.createdAt <= :to)
+              AND c.createdAt >= :from
+              AND c.createdAt <= :to
             GROUP BY c.agentId
             """)
     List<CommissionRepository.CommissionAgentTotal> reportByAgent(
