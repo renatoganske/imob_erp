@@ -65,7 +65,7 @@ export function PhotoUpload({
           <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleFileChange} />
         </label>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

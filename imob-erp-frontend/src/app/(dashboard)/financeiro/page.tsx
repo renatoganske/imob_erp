@@ -1,6 +1,8 @@
 "use client";
 
 import { FinancialDashboard } from "@/components/financeiro/FinancialDashboard";
+import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/state";
 import { useFinancialDashboard } from "@/hooks/useFinancial";
 
 export default function FinancialPage() {
@@ -8,8 +10,14 @@ export default function FinancialPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Financeiro</h1>
-      {loading && <p className="text-muted-foreground">Carregando...</p>}
+      <PageHeader title="Financeiro" description="Saldo, contas a receber e a pagar." />
+      {loading && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+      )}
       {data && <FinancialDashboard data={data} />}
     </div>
   );

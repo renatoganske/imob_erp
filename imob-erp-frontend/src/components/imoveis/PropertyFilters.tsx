@@ -1,10 +1,21 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import type { PropertyFilters as Filters, PropertyStatus, PropertyType } from "@/types/property";
 
-const TYPES: PropertyType[] = ["CASA", "APARTAMENTO", "COMERCIAL", "TERRENO"];
-const STATUSES: PropertyStatus[] = ["DISPONIVEL", "RESERVADO", "VENDIDO", "ALUGADO"];
+const TYPES: { value: PropertyType; label: string }[] = [
+  { value: "CASA", label: "Casa" },
+  { value: "APARTAMENTO", label: "Apartamento" },
+  { value: "COMERCIAL", label: "Comercial" },
+  { value: "TERRENO", label: "Terreno" },
+];
+const STATUSES: { value: PropertyStatus; label: string }[] = [
+  { value: "DISPONIVEL", label: "Disponível" },
+  { value: "RESERVADO", label: "Reservado" },
+  { value: "VENDIDO", label: "Vendido" },
+  { value: "ALUGADO", label: "Alugado" },
+];
 
 export function PropertyFilters({
   filters,
@@ -14,34 +25,35 @@ export function PropertyFilters({
   onChange: (filters: Filters) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-3">
-      <select
-        className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+    <div className="flex flex-wrap gap-3" role="search" aria-label="Filtrar imóveis">
+      <Select
+        aria-label="Tipo"
         value={filters.type ?? ""}
         onChange={(e) => onChange({ ...filters, type: (e.target.value || undefined) as PropertyType | undefined })}
       >
         <option value="">Todos os tipos</option>
-        {TYPES.map((type) => (
-          <option key={type} value={type}>
-            {type}
+        {TYPES.map((t) => (
+          <option key={t.value} value={t.value}>
+            {t.label}
           </option>
         ))}
-      </select>
+      </Select>
 
-      <select
-        className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+      <Select
+        aria-label="Status"
         value={filters.status ?? ""}
         onChange={(e) => onChange({ ...filters, status: (e.target.value || undefined) as PropertyStatus | undefined })}
       >
         <option value="">Todos os status</option>
-        {STATUSES.map((status) => (
-          <option key={status} value={status}>
-            {status}
+        {STATUSES.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
           </option>
         ))}
-      </select>
+      </Select>
 
       <Input
+        aria-label="Bairro"
         placeholder="Bairro"
         className="w-40"
         value={filters.neighborhood ?? ""}
@@ -49,6 +61,7 @@ export function PropertyFilters({
       />
 
       <Input
+        aria-label="Preço mínimo"
         type="number"
         placeholder="Preço mín."
         className="w-32"
@@ -57,6 +70,7 @@ export function PropertyFilters({
       />
 
       <Input
+        aria-label="Preço máximo"
         type="number"
         placeholder="Preço máx."
         className="w-32"

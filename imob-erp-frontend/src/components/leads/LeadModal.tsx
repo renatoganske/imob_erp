@@ -1,6 +1,8 @@
 "use client";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { LEAD_SOURCE_LABEL, LEAD_STAGE_LABEL } from "@/lib/labels";
 import type { Lead } from "@/types/lead";
 
 export function LeadModal({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
@@ -11,6 +13,9 @@ export function LeadModal({ lead, onClose }: { lead: Lead | null; onClose: () =>
           <>
             <DialogHeader>
               <DialogTitle>{lead.name}</DialogTitle>
+              <div>
+                <Badge variant="info">{LEAD_STAGE_LABEL[lead.stage]}</Badge>
+              </div>
             </DialogHeader>
             <div className="flex flex-col gap-2 text-sm">
               <p>
@@ -22,7 +27,7 @@ export function LeadModal({ lead, onClose }: { lead: Lead | null; onClose: () =>
                 </p>
               )}
               <p>
-                <span className="text-muted-foreground">Origem:</span> {lead.source}
+                <span className="text-muted-foreground">Origem:</span> {LEAD_SOURCE_LABEL[lead.source]}
               </p>
               {lead.notes && (
                 <p>

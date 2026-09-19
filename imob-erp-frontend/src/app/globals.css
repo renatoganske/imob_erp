@@ -2,35 +2,94 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Tokens pensados para uso o dia todo:
+ * - fundo off-white / grafite (nunca branco ou preto puro) para reduzir brilho e halo;
+ * - texto em tons suaves com contraste AA (>= 4.5:1);
+ * - cor de destaque única (teal) e dessaturada; status usam par "soft bg + fg".
+ */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-  --primary: 222 47% 11%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214 32% 91%;
-  --radius: 0.5rem;
+  --background: 210 20% 97%;
+  --foreground: 222 24% 18%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 24% 18%;
+  --primary: 174 62% 28%;
+  --primary-foreground: 0 0% 100%;
+  --primary-soft: 174 40% 92%;
+  --secondary: 214 22% 94%;
+  --secondary-foreground: 222 24% 22%;
+  --muted: 214 22% 94%;
+  --muted-foreground: 217 13% 40%;
+  --destructive: 0 62% 46%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 20% 88%;
+  --ring: 174 62% 34%;
+  --success: 152 60% 24%;
+  --success-soft: 152 45% 91%;
+  --warning: 32 85% 26%;
+  --warning-soft: 40 90% 90%;
+  --info: 215 65% 36%;
+  --info-soft: 214 80% 93%;
+  --danger: 0 60% 38%;
+  --danger-soft: 0 75% 94%;
+  --radius: 0.625rem;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
+    --background: 222 16% 10%;
+    --foreground: 214 18% 86%;
+    --card: 222 15% 13%;
+    --card-foreground: 214 18% 86%;
+    --primary: 172 42% 50%;
+    --primary-foreground: 222 24% 8%;
+    --primary-soft: 172 30% 17%;
+    --secondary: 222 13% 18%;
+    --secondary-foreground: 214 18% 84%;
+    --muted: 222 13% 18%;
+    --muted-foreground: 215 12% 64%;
+    --destructive: 0 55% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 12% 21%;
+    --ring: 172 42% 50%;
+    --success: 152 40% 66%;
+    --success-soft: 152 30% 16%;
+    --warning: 38 65% 66%;
+    --warning-soft: 38 40% 16%;
+    --info: 213 70% 72%;
+    --info-soft: 214 40% 18%;
+    --danger: 0 65% 72%;
+    --danger-soft: 0 35% 18%;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --background: 222 16% 10%;
+  --foreground: 214 18% 86%;
+  --card: 222 15% 13%;
+  --card-foreground: 214 18% 86%;
+  --primary: 172 42% 50%;
+  --primary-foreground: 222 24% 8%;
+  --primary-soft: 172 30% 17%;
+  --secondary: 222 13% 18%;
+  --secondary-foreground: 214 18% 84%;
+  --muted: 222 13% 18%;
+  --muted-foreground: 215 12% 64%;
+  --destructive: 0 55% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 222 12% 21%;
+  --ring: 172 42% 50%;
+  --success: 152 40% 66%;
+  --success-soft: 152 30% 16%;
+  --warning: 38 65% 66%;
+  --warning-soft: 38 40% 16%;
+  --info: 213 70% 72%;
+  --info-soft: 214 40% 18%;
+  --danger: 0 65% 72%;
+  --danger-soft: 0 35% 18%;
+  color-scheme: dark;
 }
 
 * {
@@ -40,4 +99,19 @@
 body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco visível e consistente para navegação por teclado */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

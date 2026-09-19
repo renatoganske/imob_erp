@@ -1,9 +1,10 @@
 import { PropertyForm } from "@/components/imoveis/PropertyForm";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default function NewPropertyPage() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Novo imóvel</h1>
+      <PageHeader title="Novo imóvel" description="Cadastre um imóvel no portfólio." />
       <PropertyForm />
     </div>
   );
