@@ -114,6 +114,19 @@ public class ContractService {
         if (contract.getStatus() != ContractStatus.RASCUNHO) {
             throw new BusinessException("Somente contratos em rascunho podem ser ativados", "CONTRACT_NOT_DRAFT");
         }
+
+        // Valida corretor e taxa antes de qualquer efeito: contrato sem comissao definida nao pode ser ativado.
+        User agent = userRepository.findByIdAndTenantId(contract.getAgentId(), TenantContext.tenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Corretor", contract.getAgentId()));
+        BigDecimal rate = contract.getCommissionRateOverride() != null
+                ? contract.getCommissionRateOverride()
+                : agent.getCommissionRate();
+        if (rate == null) {
+            throw new BusinessException(
+                    "O corretor " + agent.getName() + " nao tem taxa de comissao definida. Defina a taxa em Usuarios antes de ativar o contrato",
+                    "AGENT_WITHOUT_COMMISSION_RATE");
+        }
+
         contract.setStatus(ContractStatus.ATIVO);
         log.info("Ativando contrato {}: gerando parcelas financeiras e comissao do corretor", contract.getId());
 
@@ -129,11 +142,6 @@ public class ContractService {
                     "Venda - " + contract.getId(), contract.getValue(), contract.getStartDate());
         }
 
-        User agent = userRepository.findByIdAndTenantId(contract.getAgentId(), TenantContext.tenantId())
-                .orElseThrow(() -> new ResourceNotFoundException("Corretor", contract.getAgentId()));
-        BigDecimal rate = contract.getCommissionRateOverride() != null
-                ? contract.getCommissionRateOverride()
-                : agent.getCommissionRate();
         commissionService.createFromContract(contract.getId(), agent.getId(), contract.getValue(), rate);
     }
 

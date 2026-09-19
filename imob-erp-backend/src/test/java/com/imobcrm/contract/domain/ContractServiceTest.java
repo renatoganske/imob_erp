@@ -7,10 +7,13 @@ import com.imobcrm.contract.domain.enums.ContractType;
 import com.imobcrm.contract.infra.ContractMapper;
 import com.imobcrm.financial.domain.FinancialService;
 import com.imobcrm.lead.domain.LeadRepository;
+import com.imobcrm.property.domain.Property;
 import com.imobcrm.property.domain.PropertyRepository;
+import com.imobcrm.shared.exception.BusinessException;
 import com.imobcrm.shared.exception.ResourceNotFoundException;
 import com.imobcrm.storage.R2StorageService;
 import com.imobcrm.tenant.TenantContext;
+import com.imobcrm.user.domain.User;
 import com.imobcrm.user.domain.UserRepository;
 import com.imobcrm.user.domain.enums.Role;
 import org.junit.jupiter.api.AfterEach;
@@ -26,6 +29,7 @@ import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -125,6 +129,55 @@ class ContractServiceTest {
         assertThatThrownBy(() -> contractService.update(contractId, request(leadId)))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(contractRepository, never()).save(any());
+    }
+
+    @Test
+    void activate_isBlockedWhenAgentHasNoCommissionRate() {
+        Contract draft = draftContract(null);
+        when(contractRepository.findByIdAndTenantId(draft.getId(), tenantId)).thenReturn(Optional.of(draft));
+        when(userRepository.findByIdAndTenantId(agentId, tenantId))
+                .thenReturn(Optional.of(User.builder().id(agentId).name("Ana").commissionRate(null).build()));
+
+        assertThatThrownBy(() -> contractService.updateStatus(draft.getId(), ContractStatus.ATIVO))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Ana")
+                .extracting(e -> ((BusinessException) e).getCode())
+                .isEqualTo("AGENT_WITHOUT_COMMISSION_RATE");
+
+        assertThat(draft.getStatus()).isEqualTo(ContractStatus.RASCUNHO);
+        verify(propertyRepository, never()).save(any());
+        verify(financialService, never()).createSingleEntry(any(), any(), any(), any(), any(), any());
+        verify(commissionService, never()).createFromContract(any(), any(), any(), any());
+    }
+
+    @Test
+    void activate_proceedsWhenContractOverridesTheRate() {
+        Contract draft = draftContract(new BigDecimal("3"));
+        when(contractRepository.findByIdAndTenantId(draft.getId(), tenantId)).thenReturn(Optional.of(draft));
+        when(userRepository.findByIdAndTenantId(agentId, tenantId))
+                .thenReturn(Optional.of(User.builder().id(agentId).name("Ana").commissionRate(null).build()));
+        when(propertyRepository.findByIdAndTenantIdAndActiveTrue(propertyId, tenantId))
+                .thenReturn(Optional.of(Property.builder().id(propertyId).build()));
+        when(contractRepository.save(any(Contract.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        contractService.updateStatus(draft.getId(), ContractStatus.ATIVO);
+
+        assertThat(draft.getStatus()).isEqualTo(ContractStatus.ATIVO);
+        verify(commissionService).createFromContract(draft.getId(), agentId, draft.getValue(), new BigDecimal("3"));
+    }
+
+    private Contract draftContract(BigDecimal rateOverride) {
+        return Contract.builder()
+                .id(UUID.randomUUID())
+                .tenantId(tenantId)
+                .propertyId(propertyId)
+                .agentId(agentId)
+                .type(ContractType.COMPRA_VENDA)
+                .status(ContractStatus.RASCUNHO)
+                .value(new BigDecimal("500000"))
+                .startDate(LocalDate.now())
+                .commissionRateOverride(rateOverride)
+                .build();
     }
 
     private ContractRequest request(UUID lead) {

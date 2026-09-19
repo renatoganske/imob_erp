@@ -1,6 +1,7 @@
 package com.imobcrm.commission.domain;
 
 import com.imobcrm.commission.infra.CommissionMapper;
+import com.imobcrm.shared.exception.BusinessException;
 import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.user.domain.enums.Role;
 import org.junit.jupiter.api.AfterEach;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -49,8 +51,10 @@ class CommissionServiceTest {
     }
 
     @Test
-    void createFromContract_skipsWhenAgentHasNoRate() {
-        commissionService.createFromContract(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("460000.00"), null);
+    void createFromContract_rejectsWhenAgentHasNoRate() {
+        assertThatThrownBy(() ->
+                commissionService.createFromContract(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("460000.00"), null))
+                .isInstanceOf(BusinessException.class);
 
         verify(commissionRepository, never()).save(any());
     }

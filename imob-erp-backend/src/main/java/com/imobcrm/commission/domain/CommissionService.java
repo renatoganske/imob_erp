@@ -70,8 +70,7 @@ public class CommissionService {
     @Transactional
     public void createFromContract(UUID contractId, UUID agentId, BigDecimal baseValue, BigDecimal rate) {
         if (rate == null) {
-            log.warn("Comissao nao gerada para o contrato {}: corretor {} sem taxa de comissao definida", contractId, agentId);
-            return;
+            throw new BusinessException("Taxa de comissao nao definida para o corretor", "AGENT_WITHOUT_COMMISSION_RATE");
         }
         BigDecimal value = baseValue.multiply(rate).divide(BigDecimal.valueOf(100));
         Commission commission = Commission.builder()
