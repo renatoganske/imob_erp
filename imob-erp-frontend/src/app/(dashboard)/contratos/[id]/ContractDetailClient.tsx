@@ -4,7 +4,9 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
+import { ActivateContractDialog } from "@/components/contratos/ActivateContractDialog";
+import { ContractDocumentUpload } from "@/components/contratos/ContractDocumentUpload";
 import { ContractStatusBadge } from "@/components/contratos/ContractStatusBadge";
 import { useContractMutations } from "@/hooks/useContracts";
 import { ApiRequestError, api } from "@/lib/api";
@@ -57,8 +59,14 @@ export function ContractDetailClient({ id }: { id: string }) {
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{CONTRACT_TYPE_LABEL[contract.type]}</h1>
           <p className="text-muted-foreground">{formatCurrency(contract.value)} — início em {formatDate(contract.startDate)}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <ContractStatusBadge status={contract.status} />
+          {contract.status === "ATIVO" && (
+            <>
+              <Badge variant="success">Parcelas geradas</Badge>
+              <Badge variant="success">Comissão calculada</Badge>
+            </>
+          )}
           {contract.status === "RASCUNHO" && <Button onClick={() => setConfirming(true)}>Ativar contrato</Button>}
         </div>
       </div>
@@ -84,11 +92,15 @@ export function ContractDetailClient({ id }: { id: string }) {
           <p>{contract.ownerName} — {contract.ownerDocument}</p>
         </div>
       </div>
-      <ConfirmDialog
+      {contract.status === "ATIVO" && (
+        <Link href="/financeiro/receber" className="text-sm font-medium text-primary hover:underline">
+          Ver parcelas em Financeiro
+        </Link>
+      )}
+      <ContractDocumentUpload contractId={contract.id} documentUrl={contract.documentUrl} onUploaded={load} />
+      <ActivateContractDialog
+        contract={contract}
         open={confirming}
-        title="Ativar este contrato?"
-        description="A ação é irreversível: o imóvel muda de status e são geradas as parcelas financeiras e a comissão do corretor."
-        confirmLabel="Ativar contrato"
         loading={activating}
         onConfirm={handleActivate}
         onCancel={() => setConfirming(false)}

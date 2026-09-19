@@ -10,6 +10,7 @@ import { PropertySelect, UserSelect } from "@/components/shared/EntitySelects";
 import { ApiRequestError } from "@/lib/api";
 import { todayLocal } from "@/lib/utils";
 import { useContractMutations } from "@/hooks/useContracts";
+import type { ContractPrefill } from "@/lib/contracts";
 import type { Contract, ContractRequest } from "@/types/contract";
 
 const EMPTY: ContractRequest = {
@@ -24,10 +25,14 @@ const EMPTY: ContractRequest = {
   ownerDocument: "",
 };
 
-export function ContractForm({ contract }: { contract?: Contract }) {
+function withoutUndefined(prefill: ContractPrefill = {}): Partial<ContractRequest> {
+  return Object.fromEntries(Object.entries(prefill).filter(([, v]) => v !== undefined));
+}
+
+export function ContractForm({ contract, prefill }: { contract?: Contract; prefill?: ContractPrefill }) {
   const router = useRouter();
   const { create, update } = useContractMutations();
-  const [form, setForm] = useState<ContractRequest>(contract ?? EMPTY);
+  const [form, setForm] = useState<ContractRequest>(contract ?? { ...EMPTY, ...withoutUndefined(prefill) });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

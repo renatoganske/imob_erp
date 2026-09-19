@@ -4,9 +4,9 @@ import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { PageResponse } from "@/types/common";
-import type { Contract, ContractRequest, ContractStatus } from "@/types/contract";
+import type { Contract, ContractRequest, ContractStatus, ContractType } from "@/types/contract";
 
-export function useContracts(params: { status?: ContractStatus } = {}) {
+export function useContracts(params: { status?: ContractStatus; type?: ContractType; size?: number } = {}) {
   const { getToken } = useAuth();
   const [data, setData] = useState<PageResponse<Contract> | null>(null);
   const [loading, setLoading] = useState(true);
