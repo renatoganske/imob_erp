@@ -12,6 +12,7 @@ import com.imobcrm.property.domain.PropertyRepository;
 import com.imobcrm.shared.exception.BusinessException;
 import com.imobcrm.shared.exception.ResourceNotFoundException;
 import com.imobcrm.storage.R2StorageService;
+import com.imobcrm.storage.UploadValidator;
 import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.user.domain.User;
 import com.imobcrm.user.domain.UserRepository;
@@ -47,6 +48,7 @@ class ContractServiceTest {
     @Mock private FinancialService financialService;
     @Mock private CommissionService commissionService;
     @Mock private R2StorageService storageService;
+    @Mock private UploadValidator uploadValidator;
 
     @InjectMocks private ContractService contractService;
 

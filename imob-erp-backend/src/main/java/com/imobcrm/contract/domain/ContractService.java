@@ -15,7 +15,9 @@ import com.imobcrm.property.domain.PropertyRepository;
 import com.imobcrm.property.domain.enums.PropertyStatus;
 import com.imobcrm.shared.exception.BusinessException;
 import com.imobcrm.shared.exception.ResourceNotFoundException;
+import com.imobcrm.storage.FileKind;
 import com.imobcrm.storage.R2StorageService;
+import com.imobcrm.storage.UploadValidator;
 import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.user.domain.User;
 import com.imobcrm.user.domain.UserRepository;
@@ -25,9 +27,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -43,6 +48,7 @@ public class ContractService {
     private final FinancialService financialService;
     private final CommissionService commissionService;
     private final R2StorageService storageService;
+    private final UploadValidator uploadValidator;
 
     @Transactional(readOnly = true)
     public Page<ContractResponse> search(ContractStatus status, ContractType type, Pageable pageable) {
@@ -148,10 +154,51 @@ public class ContractService {
     @Transactional
     public ContractResponse uploadDocument(UUID id, MultipartFile file) {
         Contract contract = findOwned(id);
+        FileKind kind = uploadValidator.validate(file, Set.of(FileKind.PDF));
         String keyPrefix = TenantContext.tenantId() + "/contracts/" + contract.getId();
-        String url = storageService.upload(keyPrefix, file);
+        String previousUrl = contract.getDocumentUrl();
+
+        String url = storageService.upload(keyPrefix, file, kind);
         contract.setDocumentUrl(url);
-        return contractMapper.toResponseDTO(contractRepository.save(contract));
+        Contract saved = contractRepository.save(contract);
+
+        // Um PDF por contrato: o anterior e apagado do R2 apenas depois do commit (se o banco falhar, o
+        // contrato continua apontando para um arquivo que existe) e o novo e apagado se a transacao for revertida.
+        afterCompletion(committed -> {
+            if (committed) {
+                deletePreviousDocument(contract, previousUrl);
+            } else {
+                storageService.keyFromUrl(url).ifPresent(storageService::delete);
+            }
+        });
+        return contractMapper.toResponseDTO(saved);
+    }
+
+    private void deletePreviousDocument(Contract contract, String previousUrl) {
+        String expectedPrefix = TenantContext.tenantId() + "/contracts/" + contract.getId() + "/";
+        storageService.keyFromUrl(previousUrl)
+                .filter(key -> key.startsWith(expectedPrefix))
+                .ifPresent(key -> {
+                    try {
+                        storageService.delete(key);
+                    } catch (RuntimeException e) {
+                        log.warn("Nao foi possivel apagar o documento anterior do contrato {} (key={}): {}",
+                                contract.getId(), key, e.getMessage());
+                    }
+                });
+    }
+
+    private static void afterCompletion(java.util.function.Consumer<Boolean> action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.accept(true);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                action.accept(status == STATUS_COMMITTED);
+            }
+        });
     }
 
     // Os ids vindos no body precisam pertencer ao tenant da requisicao; a FK do banco so garante existencia.
