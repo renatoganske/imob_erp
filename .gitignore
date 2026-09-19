@@ -37,3 +37,6 @@ imob-erp-frontend/.agents/
 
 # IntelliJ "Modernize" plugin local migration hooks (auto-generated, not authored)
 .github/modernize/
+
+# Skill memories (learned context, local-only, never commit)
+.claude/skills/*/references/memoria.md
