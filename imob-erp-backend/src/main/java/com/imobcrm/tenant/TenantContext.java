@@ -1,7 +1,6 @@
 package com.imobcrm.tenant;
 
-import com.imobcrm.user.Role;
-
+import com.imobcrm.user.domain.enums.Role;
 import java.util.UUID;
 
 /**

@@ -15,7 +15,7 @@ import java.net.URI;
 @RequiredArgsConstructor
 public class R2ClientConfig {
 
-    private final R2Properties r2Properties;
+    private final StorageProperties r2Properties;
 
     @Bean
     public S3Client s3Client() {

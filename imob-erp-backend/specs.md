@@ -172,15 +172,17 @@ Commission (Comissão — ERP)
 - Todas as queries incluem `WHERE tenant_id = ?` — sem exceção
 - `TenantInterceptor` Spring valida `tenantId` antes de qualquer controller
 - Isolamento garantido na camada de aplicação
+- IDs referenciados no body (leadId, propertyId, agentId) são validados contra o tenant da requisição (404 se não pertencerem)
 
 ### Fluxo de autenticação
 ```
 1. Usuário faz login via Clerk (frontend)
 2. Clerk retorna JWT com userId + tenantId + role em publicMetadata
 3. Frontend envia JWT no header Authorization: Bearer <token>
-4. Spring verifica assinatura via Clerk JWKS endpoint
-5. Extrai tenantId, userId e role
-6. Injeta no contexto da requisição via ThreadLocal
+4. Spring verifica assinatura via Clerk JWKS endpoint, expiração, `iss` (CLERK_ISSUER) e `azp` (origens autorizadas, se presente)
+5. Extrai tenantId e role de publicMetadata; resolve o userId local (users.id) por clerk_user_id
+6. Rejeita usuário inexistente, inativo ou de tenant diferente do token
+7. Injeta no contexto da requisição via ThreadLocal (TenantContext)
 ```
 
 ### Fluxo de integração CRM → ERP
@@ -197,18 +199,16 @@ Commission (Comissão — ERP)
 ### Estrutura de pacotes (backend)
 ```
 com.imobcrm
-├── config/           # Spring Security, Clerk JWT, CORS
+├── config/           # Spring Security, Clerk JWT (filtro + verificador de claims), CORS, logging
 ├── tenant/           # TenantContext, TenantInterceptor
-├── property/         # Imóveis
-├── lead/             # Leads (CRM)
-├── visit/            # Visitas (CRM)
-├── contract/         # Contratos (ERP)
-├── financial/        # Financeiro (ERP)
-├── commission/       # Comissões (ERP)
-├── user/             # Usuários e corretores
 ├── storage/          # R2StorageService
-└── shared/           # DTOs, exceções, paginação, auditoria
+├── shared/           # exception/, pagination/, audit/, dto/
+└── {property, lead, visit, contract, financial, commission, user}/
+    ├── api/          # Controller + DTOs (XRequest / XResponse)
+    ├── domain/       # Entidade, Service, interface XRepository, enums/
+    └── infra/        # JpaXRepository, XMapper (MapStruct)
 ```
+Detalhes e regras de dependência entre camadas: `.claude/architecture.md`.
 
 ### Estrutura de pastas (frontend)
 ```
@@ -364,7 +364,9 @@ DELETE /api/v1/users/{id}
 ### Clerk
 - SDK: `clerk-sdk-java` (oficial, Maven)
 - `publicMetadata`: `{ "tenantId": "uuid", "role": "ADMIN|CORRETOR|FINANCEIRO" }`
-- Webhook: sincroniza criação/remoção de usuário com tabela local
+- `CLERK_ISSUER` (obrigatória): Frontend API URL do Clerk, validada contra o claim `iss`
+- `CLERK_AUTHORIZED_PARTIES` (opcional): origens aceitas no claim `azp` (padrão: `APP_CORS_ORIGIN`)
+- Webhook: sincroniza criação/remoção de usuário com tabela local (**pendente** — a autenticação exige que o usuário exista em `users`)
 
 ### Cloudflare R2
 - SDK: AWS S3 Java SDK (R2 é compatível)
@@ -379,7 +381,9 @@ DELETE /api/v1/users/{id}
 ---
 
 ## 8. Segurança
-- JWT validado via Clerk JWKS a cada requisição
+- JWT validado via Clerk JWKS a cada requisição: assinatura, exp/nbf, `iss` e `azp`
+- Usuário do token deve existir, estar ativo e pertencer ao mesmo tenant do token
+- IDs de relacionamento vindos no body são checados contra o tenant (evita referência cruzada entre imobiliárias)
 - HTTPS obrigatório (Railway provisiona automaticamente)
 - Secrets via env vars — nunca no código
 - Validação de tipo MIME no upload (não apenas extensão)
@@ -402,6 +406,7 @@ DELETE /api/v1/users/{id}
 ```
 CLERK_SECRET_KEY=
 CLERK_JWKS_URL=
+CLERK_ISSUER=
 SPRING_DATASOURCE_URL=jdbc:postgresql://<host>:<port>/<db>
 SPRING_DATASOURCE_USERNAME=
 SPRING_DATASOURCE_PASSWORD=

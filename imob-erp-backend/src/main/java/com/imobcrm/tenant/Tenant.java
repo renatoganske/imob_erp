@@ -1,6 +1,6 @@
 package com.imobcrm.tenant;
 
-import com.imobcrm.shared.audit.Auditable;
+import com.imobcrm.shared.audit.AuditEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -22,7 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Entity
 @Table(name = "tenants")
-public class Tenant extends Auditable {
+public class Tenant extends AuditEntity {
 
     @Id
     private UUID id;

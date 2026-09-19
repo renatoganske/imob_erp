@@ -1,7 +1,9 @@
 package com.imobcrm.config;
 
 import com.imobcrm.tenant.TenantContext;
-import com.imobcrm.user.Role;
+import com.imobcrm.user.domain.User;
+import com.imobcrm.user.domain.UserRepository;
+import com.imobcrm.user.domain.enums.Role;
 import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -20,8 +22,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -30,20 +30,34 @@ import java.util.UUID;
  * Valida o JWT emitido pelo Clerk contra o endpoint JWKS configurado e
  * popula o SecurityContext com um RequestPrincipal (tenantId, userId, role)
  * extraido do claim publicMetadata, conforme especificado em specs.md#7.
+ * O userId do principal e o id local (users.id), resolvido por clerk_user_id;
+ * usuarios inexistentes, inativos ou de outro tenant nao sao autenticados.
  */
 @Slf4j
 public class ClerkJwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final DefaultJWTProcessor<SecurityContext> jwtProcessor;
+    private final UserRepository userRepository;
 
-    public ClerkJwtAuthenticationFilter(ClerkProperties clerkProperties) {
-        this.jwtProcessor = buildProcessor(clerkProperties.jwksUrl());
+    public ClerkJwtAuthenticationFilter(ClerkProperties clerkProperties, UserRepository userRepository) {
+        this(buildProcessor(clerkProperties), userRepository);
     }
 
-    private static DefaultJWTProcessor<SecurityContext> buildProcessor(String jwksUrl) {
+    ClerkJwtAuthenticationFilter(DefaultJWTProcessor<SecurityContext> jwtProcessor, UserRepository userRepository) {
+        this.jwtProcessor = jwtProcessor;
+        this.userRepository = userRepository;
+    }
+
+    private static DefaultJWTProcessor<SecurityContext> buildProcessor(ClerkProperties properties) {
+        if (properties.issuer() == null || properties.issuer().isBlank()) {
+            throw new IllegalStateException("CLERK_ISSUER e obrigatorio para validar o issuer do JWT");
+        }
         try {
-            var jwkSource = JWKSourceBuilder.create(new URL(jwksUrl)).build();
+            var jwkSource = JWKSourceBuilder.create(new URL(properties.jwksUrl())).build();
             var processor = new DefaultJWTProcessor<SecurityContext>();
+            processor.setJWTClaimsSetVerifier(new ClerkJwtClaimsVerifier(
+                    properties.issuer().replaceAll("/+$", ""),
+                    properties.authorizedParties() == null ? List.of() : properties.authorizedParties()));
             var keySelector = new JWSVerificationKeySelector<SecurityContext>(
                     com.nimbusds.jose.JWSAlgorithm.RS256, jwkSource);
             processor.setJWSKeySelector(keySelector);
@@ -76,9 +90,16 @@ public class ClerkJwtAuthenticationFilter extends OncePerRequestFilter {
 
             UUID tenantId = UUID.fromString((String) publicMetadata.get("tenantId"));
             Role role = Role.valueOf((String) publicMetadata.get("role"));
-            UUID userId = deterministicUserId(clerkUserId);
+            User user = userRepository.findByClerkUserId(clerkUserId)
+                    .orElseThrow(() -> new IllegalStateException("Usuario nao cadastrado localmente: " + clerkUserId));
+            if (!user.isActive()) {
+                throw new IllegalStateException("Usuario inativo: " + user.getId());
+            }
+            if (!user.getTenantId().equals(tenantId)) {
+                throw new IllegalStateException("Tenant do token diferente do tenant do usuario: " + user.getId());
+            }
 
-            var principal = new TenantContext.RequestPrincipal(tenantId, userId, clerkUserId, role);
+            var principal = new TenantContext.RequestPrincipal(tenantId, user.getId(), clerkUserId, role);
             List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
             var authentication = new UsernamePasswordAuthenticationToken(principal, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -88,19 +109,5 @@ public class ClerkJwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
-    }
-
-    /**
-     * O id local do usuario e resolvido via UserRepository.findByClerkUserId
-     * na camada de servico; aqui geramos um UUID deterministico apenas para
-     * popular o contexto de seguranca sem uma consulta ao banco por requisicao.
-     */
-    private static UUID deterministicUserId(String clerkUserId) {
-        try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(clerkUserId.getBytes(StandardCharsets.UTF_8));
-            return UUID.nameUUIDFromBytes(hash);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
     }
 }

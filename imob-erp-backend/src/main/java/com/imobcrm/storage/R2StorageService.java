@@ -19,7 +19,7 @@ import java.util.UUID;
 public class R2StorageService {
 
     private final S3Client s3Client;
-    private final R2Properties r2Properties;
+    private final StorageProperties r2Properties;
 
     /**
      * Faz upload de um arquivo para o bucket R2 sob o prefixo informado e

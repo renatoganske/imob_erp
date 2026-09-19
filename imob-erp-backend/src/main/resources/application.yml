@@ -43,6 +43,8 @@ management:
 clerk:
   secret-key: ${CLERK_SECRET_KEY}
   jwks-url: ${CLERK_JWKS_URL}
+  issuer: ${CLERK_ISSUER:}
+  authorized-parties: ${CLERK_AUTHORIZED_PARTIES:${APP_CORS_ORIGIN:http://localhost:3000}}
 
 r2:
   account-id: ${R2_ACCOUNT_ID}

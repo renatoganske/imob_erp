@@ -1,5 +1,0 @@
-package com.imobcrm.financial;
-
-public enum FinancialCategory {
-    ALUGUEL, PARCELA_VENDA, TAXA_ADMINISTRACAO, REPASSE_PROPRIETARIO, COMISSAO, DESPESA_OPERACIONAL, OUTRO
-}
