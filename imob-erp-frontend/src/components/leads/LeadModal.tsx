@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { newContractHref, prefillFromLead } from "@/lib/contracts";
 import { LEAD_SOURCE_LABEL, LEAD_STAGE_LABEL } from "@/lib/labels";
 import type { Lead } from "@/types/lead";
 
@@ -35,6 +38,13 @@ export function LeadModal({ lead, onClose }: { lead: Lead | null; onClose: () =>
                 </p>
               )}
             </div>
+            {lead.stage === "FECHADO" && (
+              <div className="mt-6 flex justify-end">
+                <Button asChild>
+                  <Link href={newContractHref(prefillFromLead(lead))}>Criar contrato</Link>
+                </Button>
+              </div>
+            )}
           </>
         )}
       </DialogContent>
