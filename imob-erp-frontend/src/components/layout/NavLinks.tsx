@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRole } from "@/hooks/useRole";
+import { canAccessPath } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "./nav-items";
 
 export function NavLinks() {
   const pathname = usePathname();
+  const role = useRole();
 
   return (
     <nav aria-label="Principal" className="flex flex-col gap-0.5">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+      {NAV_ITEMS.filter((item) => canAccessPath(role, item.href)).map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname?.startsWith(`${href}/`);
         return (
           <Link

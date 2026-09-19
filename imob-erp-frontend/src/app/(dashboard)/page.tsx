@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/state";
 import { useFinancialDashboard } from "@/hooks/useFinancial";
+import { useRole } from "@/hooks/useRole";
+import { canAccessPath } from "@/lib/permissions";
 
 const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
   { href: "/leads", label: "Novo lead", hint: "Registrar um contato", icon: Users },
@@ -17,13 +19,14 @@ const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }
 
 export default function DashboardHomePage() {
   const { data, loading } = useFinancialDashboard();
+  const role = useRole();
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader title="Resumo" description="Visão geral do negócio e atalhos para as tarefas do dia." />
 
       <section aria-label="Atalhos" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {SHORTCUTS.map(({ href, label, hint, icon: Icon }) => (
+        {SHORTCUTS.filter((s) => canAccessPath(role, s.href)).map(({ href, label, hint, icon: Icon }) => (
           <Link key={href} href={href} className="group">
             <Card className="flex items-center gap-3 p-4 transition-colors group-hover:border-primary/40">
               <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary-soft text-primary">
