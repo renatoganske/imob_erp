@@ -30,19 +30,22 @@ Plataforma SaaS multi-tenant que integra CRM (pipeline de leads, visitas) e ERP 
 
 ## Arquitetura
 
-O projeto segue uma arquitetura de **camadas limpas**, com separação explícita de responsabilidades:
+Monólito modular, **package-by-feature**, com três sub-camadas por módulo (detalhes em `docs/architecture.md`):
 
 ```
-Controller   →  entrada HTTP, validação de request, serialização de resposta
-Service      →  regras de negócio (sem dependência direta de Spring Data)
-Repository   →  interface (porta) — implementada via Spring Data JPA
+api/      →  Controller + DTOs (XRequest / XResponse): entrada HTTP, validação, serialização
+domain/   →  Entidade JPA, Service (regras de negócio), interface XRepository (porta), enums/
+infra/    →  JpaXRepository (implementa a porta via Spring Data) e XMapper (MapStruct)
 ```
 
 **Regras inegociáveis:**
-- `Service` nunca importa repositórios JPA diretamente — apenas interfaces
+- `Service` depende apenas da interface `XRepository` (em `domain/`), nunca de `JpaXRepository`
 - `Controller` nunca contém regra de negócio — apenas delega ao `Service`
 - Entidades JPA nunca são expostas na API — use DTOs em todos os endpoints
 - Conversão entidade ↔ DTO via **MapStruct** (sem mapeamento manual)
+- `tenantId` vem sempre do `TenantContext` (JWT), nunca do body
+
+**Desvios conscientes do MVP:** as entidades JPA ficam em `domain/`; os Services retornam DTOs de `api/` e usam o mapper de `infra/`; as interfaces de repositório usam `Page`/`Pageable` do Spring Data.
 
 ---
 
@@ -50,64 +53,21 @@ Repository   →  interface (porta) — implementada via Spring Data JPA
 
 ```
 src/main/java/com/imobcrm/
-├── config/
-│   ├── SecurityConfig.java          # Spring Security + CORS
-│   ├── ClerkJwtConfig.java          # Configuração JWKS do Clerk
-│   └── SchedulerConfig.java         # @EnableScheduling
-├── tenant/
-│   ├── TenantContext.java           # ThreadLocal com tenantId, userId, role
-│   └── TenantInterceptor.java       # Extrai e valida tenant a cada request
-├── property/                        # Módulo: Imóveis
-│   ├── PropertyController.java
-│   ├── PropertyService.java
-│   ├── PropertyRepository.java
-│   ├── Property.java                # Entidade JPA
-│   └── dto/
-│       ├── PropertyRequestDTO.java
-│       └── PropertyResponseDTO.java
-├── lead/                            # Módulo CRM: Leads
-│   ├── LeadController.java
-│   ├── LeadService.java
-│   ├── LeadRepository.java
-│   ├── Lead.java
-│   └── dto/
-├── visit/                           # Módulo CRM: Visitas
-│   ├── VisitController.java
-│   ├── VisitService.java
-│   ├── VisitRepository.java
-│   ├── Visit.java
-│   └── dto/
-├── contract/                        # Módulo ERP: Contratos
-│   ├── ContractController.java
-│   ├── ContractService.java
-│   ├── ContractRepository.java
-│   ├── Contract.java
-│   └── dto/
-├── financial/                       # Módulo ERP: Financeiro
-│   ├── FinancialController.java
-│   ├── FinancialService.java
-│   ├── FinancialRepository.java
-│   ├── FinancialEntry.java
-│   ├── FinancialScheduler.java      # Job diário de atualização de status
-│   └── dto/
-├── commission/                      # Módulo ERP: Comissões
-│   ├── CommissionController.java
-│   ├── CommissionService.java
-│   ├── CommissionRepository.java
-│   ├── Commission.java
-│   └── dto/
-├── user/                            # Usuários e corretores
-│   ├── UserController.java
-│   ├── UserService.java
-│   ├── UserRepository.java
-│   ├── User.java
-│   └── dto/
-├── storage/
-│   └── R2StorageService.java        # Upload/remoção de arquivos no R2
-└── shared/
-    ├── exception/                   # GlobalExceptionHandler, exceções customizadas
-    ├── pagination/                  # PageResponse<T> padrão
-    └── audit/                       # createdAt, updatedAt automáticos
+├── config/                          # SecurityConfig, ClerkJwtAuthenticationFilter, RequestLoggingFilter, WebMvcConfig, ...
+├── tenant/                          # TenantContext (ThreadLocal) e TenantInterceptor
+├── shared/
+│   ├── exception/                   # ApiException, BusinessException, GlobalExceptionHandler, ...
+│   ├── pagination/                  # PageResponse<T>
+│   ├── audit/                       # AuditEntity (createdAt, updatedAt)
+│   └── dto/                         # ErrorResponse
+├── storage/                         # R2StorageService, StorageProperties, R2ClientConfig
+│
+└── {property,user,lead,visit,contract,financial,commission}/   # Módulos de negócio
+    ├── api/                         # {X}Controller, {X}Request, {X}Response, {X}{Acao}Request
+    ├── domain/                      # {X} (entidade), {X}Service, {X}Repository (interface)
+    │   └── enums/                   # Enums do módulo
+    └── infra/                       # Jpa{X}Repository (implementa a interface), {X}Mapper (MapStruct)
+                                     # financial/domain também contém OverdueJob (@Scheduled)
 src/main/resources/
 ├── application.yml
 ├── application-dev.yml
@@ -120,7 +80,7 @@ src/main/resources/
 
 ## Pré-requisitos
 
-- Java 21+
+- Java 21 (JDK 21 exato: com o JDK 25 o Lombok não compila)
 - Maven 3.9+
 - Docker (para rodar PostgreSQL localmente)
 - Conta no [Clerk](https://clerk.com) (gratuita)
@@ -148,6 +108,8 @@ docker run --name imob-postgres \
   -d postgres:15
 ```
 
+> Alternativa: `docker compose up -d postgres` na raiz do monorepo (Postgres 16 na porta **5434**, usuário `imobuser`, senha `imobpass`, banco `imobcrm`). É o padrão do `application.yml`.
+
 ### 3. Configure as variáveis de ambiente
 
 Crie um arquivo `.env` na raiz do projeto (nunca commitar):
@@ -161,6 +123,7 @@ SPRING_DATASOURCE_PASSWORD=imobpass
 # Clerk
 CLERK_SECRET_KEY=sk_test_...
 CLERK_JWKS_URL=https://<seu-frontend-api>.clerk.accounts.dev/.well-known/jwks.json
+CLERK_ISSUER=https://<seu-frontend-api>.clerk.accounts.dev
 
 # Cloudflare R2
 R2_ACCOUNT_ID=
@@ -198,6 +161,8 @@ Health check: `http://localhost:8080/actuator/health`
 | `SPRING_DATASOURCE_PASSWORD` | Senha do banco | ✅ |
 | `CLERK_SECRET_KEY` | Chave secreta do Clerk | ✅ |
 | `CLERK_JWKS_URL` | URL do JWKS para validação de JWT | ✅ |
+| `CLERK_ISSUER` | Issuer esperado no claim `iss` do JWT (Frontend API URL do Clerk, sem barra final) | ✅ |
+| `CLERK_AUTHORIZED_PARTIES` | Origens aceitas no claim `azp`, separadas por vírgula (padrão: `APP_CORS_ORIGIN`) | ❌ |
 | `R2_ACCOUNT_ID` | ID da conta Cloudflare | ✅ |
 | `R2_ACCESS_KEY_ID` | Access Key do R2 | ✅ |
 | `R2_SECRET_ACCESS_KEY` | Secret Key do R2 | ✅ |
@@ -223,7 +188,16 @@ O JWT do Clerk deve conter em `publicMetadata`:
 }
 ```
 
-O `TenantInterceptor` extrai e valida esses valores a cada requisição.
+O `ClerkJwtAuthenticationFilter` valida o token a cada requisição:
+
+1. **Assinatura** (RS256) via JWKS do Clerk (`CLERK_JWKS_URL`) e expiração (`exp`/`nbf`)
+2. **`iss`** igual a `CLERK_ISSUER` e presença de `sub` (`ClerkJwtClaimsVerifier`)
+3. **`azp`**, quando presente, dentro de `CLERK_AUTHORIZED_PARTIES` (padrão: `APP_CORS_ORIGIN`)
+4. **Usuário local:** o `sub` é resolvido em `users` por `clerk_user_id`. O `userId` do contexto é o `users.id` real. Usuário inexistente, inativo ou de tenant diferente do token **não é autenticado**
+
+> O usuário precisa existir na tabela `users` (previsto: webhook `user.created` do Clerk, ainda não implementado — por ora crie a linha manualmente ou via convite).
+
+O `TenantInterceptor` popula o `TenantContext` e o MDC de logs; o `RequestLoggingFilter` limpa ambos ao fim da requisição.
 
 ---
 
@@ -232,6 +206,7 @@ O `TenantInterceptor` extrai e valida esses valores a cada requisição.
 Cada imobiliária é um **tenant** isolado. Nenhum dado de um tenant é visível para outro.
 
 - Todas as queries incluem `WHERE tenant_id = ?`
+- IDs de outras entidades recebidos no body (`leadId`, `propertyId`, `agentId` em contratos e visitas) são validados contra o tenant da requisição; ID inexistente ou de outro tenant retorna `404`
 - O `TenantContext` (ThreadLocal) injeta o `tenantId` automaticamente via interceptor
 - Violação de acesso retorna `403 Forbidden`
 
@@ -338,6 +313,8 @@ O Flyway roda automaticamente na inicialização da aplicação.
 ```
 
 Cobertura mínima exigida: **80% nas camadas de service**.
+
+Suíte atual (unitários com Mockito, sem banco): `ClerkJwtAuthenticationFilterTest`, `ClerkJwtClaimsVerifierTest`, `ContractServiceTest`, `VisitServiceTest`, `PropertyServiceTest`. Rode com o JDK 21 (`JAVA_HOME` apontando para ele).
 
 ---
 

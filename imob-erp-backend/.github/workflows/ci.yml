@@ -87,6 +87,7 @@ jobs:
           # Usa secrets se disponíveis, senão usa mocks seguros para CI
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY != '' && secrets.CLERK_SECRET_KEY || 'sk_test_fake_for_ci' }}
           CLERK_JWKS_URL: ${{ secrets.CLERK_JWKS_URL != '' && secrets.CLERK_JWKS_URL || 'http://localhost/fake-jwks' }}
+          CLERK_ISSUER: ${{ secrets.CLERK_ISSUER != '' && secrets.CLERK_ISSUER || 'http://localhost/fake-issuer' }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID != '' && secrets.R2_ACCOUNT_ID || 'fake' }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID != '' && secrets.R2_ACCESS_KEY_ID || 'fake' }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY != '' && secrets.R2_SECRET_ACCESS_KEY || 'fake' }}

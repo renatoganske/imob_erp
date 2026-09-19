@@ -1,5 +1,6 @@
 package com.imobcrm.config;
 
+import com.imobcrm.user.domain.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +24,7 @@ public class SecurityConfig {
 
     private final ClerkProperties clerkProperties;
     private final AppCorsProperties corsProperties;
+    private final UserRepository userRepository;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -34,7 +36,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
-                .addFilterBefore(new ClerkJwtAuthenticationFilter(clerkProperties), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new ClerkJwtAuthenticationFilter(clerkProperties, userRepository), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new RequestLoggingFilter(), ClerkJwtAuthenticationFilter.class);
 
         return http.build();
