@@ -27,6 +27,8 @@ public class R2StorageService {
      * {tenantId}/properties/{propertyId}/{uuid}.{ext} ou equivalente para contratos.
      */
     public String upload(String keyPrefix, MultipartFile file) {
+        // Legado: extensao e Content-Type vem do cliente. Contratos usam este caminho ate a 4.2 (IMOB-22)
+        // passar a validar o PDF com o UploadValidator e a chamar a sobrecarga com FileKind.
         String extension = extractExtension(file.getOriginalFilename());
         String key = keyPrefix + "/" + UUID.randomUUID() + extension;
 
@@ -44,6 +46,28 @@ public class R2StorageService {
         }
 
         log.info("Arquivo enviado ao R2: key={} size={}b", key, file.getSize());
+        return r2Properties.publicUrl() + "/" + key;
+    }
+
+    /**
+     * Upload de arquivo ja validado pelo {@link UploadValidator}: extensao e Content-Type vem do tipo
+     * real detectado, nao do que o cliente informou. Chave: {keyPrefix}/{uuid}.{ext}.
+     */
+    public String upload(String keyPrefix, MultipartFile file, FileKind kind) {
+        String key = keyPrefix + "/" + UUID.randomUUID() + "." + kind.extension();
+        try {
+            s3Client.putObject(
+                    PutObjectRequest.builder()
+                            .bucket(r2Properties.bucketName())
+                            .key(key)
+                            .contentType(kind.contentType())
+                            .build(),
+                    RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+        } catch (IOException e) {
+            log.error("Falha ao enviar arquivo para o R2: key={}", key, e);
+            throw new UncheckedIOException("Falha ao ler o arquivo para upload", e);
+        }
+        log.info("Arquivo enviado ao R2: key={} type={} size={}b", key, kind, file.getSize());
         return r2Properties.publicUrl() + "/" + key;
     }
 

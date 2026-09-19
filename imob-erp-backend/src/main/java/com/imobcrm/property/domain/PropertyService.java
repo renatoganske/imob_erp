@@ -7,7 +7,9 @@ import com.imobcrm.property.domain.enums.PropertyType;
 import com.imobcrm.property.infra.PropertyMapper;
 import com.imobcrm.shared.exception.BusinessException;
 import com.imobcrm.shared.exception.ResourceNotFoundException;
+import com.imobcrm.storage.FileKind;
 import com.imobcrm.storage.R2StorageService;
+import com.imobcrm.storage.UploadValidator;
 import com.imobcrm.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
-import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -27,12 +28,12 @@ import java.util.UUID;
 public class PropertyService {
 
     private static final int MAX_PHOTOS = 20;
-    // RN-11: apenas JPG/PNG/WebP, ate 10MB (limite de tamanho aplicado via spring.servlet.multipart.max-file-size)
-    private static final Set<String> ALLOWED_PHOTO_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+    // RN-11: no maximo 20 fotos por imovel; apenas JPG/PNG/WebP (magic bytes) de ate 10MB, via UploadValidator
 
     private final PropertyRepository propertyRepository;
     private final PropertyMapper propertyMapper;
     private final R2StorageService storageService;
+    private final UploadValidator uploadValidator;
 
     @Transactional(readOnly = true)
     public Page<PropertyResponse> search(PropertyType type, PropertyStatus status, String neighborhood,
@@ -106,14 +107,12 @@ public class PropertyService {
     @Transactional
     public PropertyResponse addPhoto(UUID id, MultipartFile file) {
         Property property = findOwned(id);
+        FileKind kind = uploadValidator.validate(file, UploadValidator.IMAGES);
         if (property.getPhotos().size() >= MAX_PHOTOS) {
             throw new BusinessException("Maximo de " + MAX_PHOTOS + " fotos por imovel", "MAX_PHOTOS_EXCEEDED");
         }
-        if (!ALLOWED_PHOTO_CONTENT_TYPES.contains(file.getContentType())) {
-            throw new BusinessException("Formato de imagem invalido. Use JPG, PNG ou WebP.", "INVALID_PHOTO_FORMAT");
-        }
         String key = TenantContext.tenantId() + "/properties/" + property.getId();
-        String url = storageService.upload(key, file);
+        String url = storageService.upload(key, file, kind);
         property.getPhotos().add(url);
         return propertyMapper.toResponseDTO(propertyRepository.save(property));
     }
