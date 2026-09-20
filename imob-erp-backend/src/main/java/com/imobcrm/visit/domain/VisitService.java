@@ -1,10 +1,15 @@
 package com.imobcrm.visit.domain;
 
 import com.imobcrm.lead.domain.LeadRepository;
+import com.imobcrm.property.domain.Property;
 import com.imobcrm.property.domain.PropertyRepository;
+import com.imobcrm.property.domain.enums.PropertyStatus;
+import com.imobcrm.shared.exception.BusinessException;
+import com.imobcrm.shared.exception.ForbiddenException;
 import com.imobcrm.shared.exception.ResourceNotFoundException;
 import com.imobcrm.tenant.TenantContext;
 import com.imobcrm.user.domain.UserRepository;
+import com.imobcrm.user.domain.enums.Role;
 import com.imobcrm.visit.api.VisitRequest;
 import com.imobcrm.visit.api.VisitResponse;
 import com.imobcrm.visit.domain.enums.VisitStatus;
@@ -16,6 +21,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -23,15 +32,24 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class VisitService {
 
+    private static final ZoneId BRASILIA = ZoneId.of("America/Sao_Paulo");
+    private static final OffsetDateTime PERIOD_MIN = OffsetDateTime.parse("1970-01-01T00:00:00Z");
+    private static final OffsetDateTime PERIOD_MAX = OffsetDateTime.parse("9999-12-31T23:59:59Z");
+
     private final VisitRepository visitRepository;
     private final VisitMapper visitMapper;
     private final LeadRepository leadRepository;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
 
+    /**
+     * Lista as visitas do tenant, opcionalmente filtradas por corretor, status e periodo (datas inclusivas,
+     * no fuso de Brasilia). Corretor enxerga apenas as proprias visitas, ignorando qualquer agentId enviado.
+     */
     @Transactional(readOnly = true)
-    public Page<VisitResponse> search(UUID agentId, Pageable pageable) {
-        return visitRepository.search(TenantContext.tenantId(), agentId, pageable)
+    public Page<VisitResponse> search(UUID agentId, VisitStatus status, LocalDate from, LocalDate to, Pageable pageable) {
+        UUID effectiveAgentId = isCorretor() ? TenantContext.userId() : agentId;
+        return visitRepository.search(TenantContext.tenantId(), effectiveAgentId, status, startOf(from), endOf(to), pageable)
                 .map(visitMapper::toResponseDTO);
     }
 
@@ -78,19 +96,53 @@ public class VisitService {
     // Os ids vindos no body precisam pertencer ao tenant da requisicao; a FK do banco so garante existencia.
     private void validateReferences(VisitRequest request) {
         UUID tenantId = TenantContext.tenantId();
+        requireNotSchedulingForOthers(request.agentId());
         if (!leadRepository.existsByIdAndTenantId(request.leadId(), tenantId)) {
             throw new ResourceNotFoundException("Lead", request.leadId());
         }
-        if (!propertyRepository.existsByIdAndTenantIdAndActiveTrue(request.propertyId(), tenantId)) {
-            throw new ResourceNotFoundException("Imovel", request.propertyId());
+        Property property = propertyRepository.findByIdAndTenantIdAndActiveTrue(request.propertyId(), tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Imovel", request.propertyId()));
+        if (property.getStatus() == PropertyStatus.VENDIDO) {
+            throw new BusinessException("Nao e possivel agendar visita para imovel vendido", "PROPERTY_SOLD");
         }
         if (!userRepository.existsByIdAndTenantId(request.agentId(), tenantId)) {
             throw new ResourceNotFoundException("Corretor", request.agentId());
         }
     }
 
+    /** Corretor so agenda visitas para si mesmo; agendar para outro corretor e prerrogativa do Admin. */
+    private void requireNotSchedulingForOthers(UUID agentId) {
+        if (isCorretor() && !agentId.equals(TenantContext.userId())) {
+            throw new ForbiddenException("Corretor nao pode agendar visitas para outro corretor");
+        }
+    }
+
+    /**
+     * Busca a visita do tenant atual. Para CORRETOR, visita de outro corretor responde 404
+     * (mesmo que se ela nao existisse), sem revelar a existencia do registro.
+     */
     private Visit findOwned(UUID id) {
         return visitRepository.findByIdAndTenantId(id, TenantContext.tenantId())
+                .filter(visit -> !isCorretor() || visit.getAgentId().equals(TenantContext.userId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Visita", id));
+    }
+
+    private boolean isCorretor() {
+        return TenantContext.role() == Role.CORRETOR;
+    }
+
+    // O PostgreSQL nao infere o tipo de um OffsetDateTime nulo em "(:from IS NULL OR ...)", entao o
+    // periodo aberto e representado por limites extremos em vez de parametros nulos.
+    private static OffsetDateTime startOf(LocalDate date) {
+        return Optional.ofNullable(date)
+                .map(d -> d.atStartOfDay(BRASILIA).toOffsetDateTime())
+                .orElse(PERIOD_MIN);
+    }
+
+    /** Limite superior exclusivo: o dia final e inclusivo, entao vale o inicio do dia seguinte. */
+    private static OffsetDateTime endOf(LocalDate date) {
+        return Optional.ofNullable(date)
+                .map(d -> d.plusDays(1).atStartOfDay(BRASILIA).toOffsetDateTime())
+                .orElse(PERIOD_MAX);
     }
 }

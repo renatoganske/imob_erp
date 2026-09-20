@@ -23,7 +23,7 @@ Papéis: `ADMIN`, `CORRETOR`, `FINANCEIRO` (`user/domain/enums/Role.java`). O pa
 |---|---|---|
 | Imóveis | ADMIN, CORRETOR | ADMIN, CORRETOR (excluir: só ADMIN) |
 | Leads | ADMIN, CORRETOR, FINANCEIRO | ADMIN, CORRETOR (reatribuir: só ADMIN) |
-| Visitas | ADMIN, CORRETOR | ADMIN, CORRETOR |
+| Visitas | ADMIN; CORRETOR só as próprias | ADMIN; CORRETOR só nas próprias e agendando para si |
 | Contratos | ADMIN, FINANCEIRO; CORRETOR só os próprios, sem dados sensíveis | ADMIN, FINANCEIRO |
 | Financeiro | ADMIN, FINANCEIRO | ADMIN, FINANCEIRO |
 | Comissões | ADMIN, CORRETOR, FINANCEIRO | pagar e relatório: ADMIN, FINANCEIRO |
@@ -108,25 +108,33 @@ Rotas `/api/v1/leads`: `GET /` e `GET /{id}` (ADMIN, CORRETOR, FINANCEIRO); `POS
 
 ## 3. Visitas
 
-Rotas `/api/v1/visits` (ADMIN, CORRETOR): `GET /` (filtro `agentId`, paginado), `GET /{id}`, `POST /` (cria `AGENDADA`), `PATCH /{id}/status` e `PATCH /{id}/result` (grava o resultado e marca `REALIZADA`).
+Rotas `/api/v1/visits` (ADMIN, CORRETOR):
+- `GET /` — paginado, ordenado por `scheduledAt` crescente. Filtros opcionais: `status`, `from` e `to` (datas `yyyy-MM-dd`, ambas **inclusivas**, no fuso de Brasília; uma visita às 23h30 de 15/04 cai no dia 15) e `agentId` (só tem efeito para ADMIN).
+- `GET /{id}`, `POST /` (cria `AGENDADA`), `PATCH /{id}/status` e `PATCH /{id}/result` (grava o resultado e marca `REALIZADA`).
 
 Status: `AGENDADA`, `REALIZADA`, `CANCELADA`. Lead, imóvel e corretor do corpo são validados contra o tenant.
 
-**Telas:** `/visitas` com lista e cards (`VisitList.tsx`, `VisitCard.tsx`), agendamento (`VisitFormModal.tsx`) e registro de resultado (`VisitModal.tsx`).
+**Regras de negócio**
+- **Imóvel vendido:** agendar visita para imóvel `VENDIDO` devolve **422** `PROPERTY_SOLD`. Imóvel `ALUGADO` ou `RESERVADO` ainda aceita visita.
+- **Corretor só acessa as próprias visitas:** a listagem ignora qualquer `agentId` enviado e devolve só as dele; ler ou alterar visita de outro corretor responde 404 (não revela que existe). Corretor só agenda visita **para si**; para outro corretor devolve 403 (só o ADMIN faz). ADMIN vê e altera todas.
+
+**Telas:** `/visitas` com filtros (`VisitFilters.tsx`: status, de, até), lista **agrupada por dia** com o horário e o badge de status em cada visita (`VisitList.tsx`, `VisitCard.tsx`, agrupamento em `lib/visits.ts`), agendamento (`VisitFormModal.tsx`) e registro de resultado (`VisitModal.tsx`).
 
 | Item | Status |
 |---|---|
 | Agendar, listar, registrar resultado | ✅ (backend) · 👁️ (tela) |
+| Filtros por data e status, lista agrupada por dia | ✅ (backend) · 👁️ (tela) |
+| Imóvel vendido → 422; isolamento por corretor | ✅ (backend, testado) |
 | Cancelar visita pela tela | 🟡 endpoint e hook existem; sem tela |
-| Filtros por data/status e regra de imóvel vendido | ⬜ IMOB-24 |
 | Conflito de horário | ⬜ |
 | Adicionar ao Google Agenda / integração real | ⬜ IMOB-47 / IMOB-48 |
 
 **Limitações conhecidas**
-- **O backend não escopa visitas por corretor:** qualquer corretor lista todas as do tenant (diferente de leads e contratos). Confirmar se é intencional.
-- A agenda é uma lista, não um calendário.
+- A tela pede até 100 visitas por consulta e agrupa só o que veio; acima disso não há paginação na tela.
+- Registrar o resultado de uma visita `CANCELADA` a marca como `REALIZADA` (o endpoint não valida a transição); o `PATCH /status` também aceita qualquer status, inclusive voltar para `AGENDADA`.
+- A agenda é uma lista agrupada, não um calendário.
 
-**Testes:** `VisitServiceTest`.
+**Testes:** `VisitServiceTest` (unitário), `VisitAgendaTest` (integração: filtros, período no fuso de Brasília, ordenação, 422 e isolamento por corretor); no frontend, `lib/visits.test.ts`, `VisitFilters.test.tsx` e `VisitList.test.tsx`.
 
 ---
 
@@ -314,8 +322,8 @@ Recebe `{ "tenantName", "adminEmail" }` (corpo JSON e exemplo de `curl` em [`pro
 
 ## 12. Testes e CI
 
-- **Backend:** 26 classes `*Test` (Testcontainers e Flyway via `IntegrationTestBase`, JWKS local, `@MockBean S3Client`); 168 testes passando no PR #25.
-- **Frontend:** 12 arquivos Vitest; 77 testes no PR #24. Cobrem contratos, fotos, permissões, máscaras, navegação e leads. **Não há testes** de financeiro, comissões, visitas, usuários nem da lista e do formulário de imóveis.
+- **Backend:** 27 classes `*Test` (Testcontainers e Flyway via `IntegrationTestBase`, JWKS local, `@MockBean S3Client`); 184 testes passando no PR do IMOB-24.
+- **Frontend:** 15 arquivos Vitest; 84 testes no PR do IMOB-24. Cobrem contratos, fotos, permissões, máscaras, navegação, leads e visitas (filtros, agrupamento por dia). **Não há testes** de financeiro, comissões, usuários nem da lista e do formulário de imóveis.
 - **CI:** `.github/workflows/backend-ci.yml` (Java 21, Postgres, `mvn test` com relatório) em push e PR para `main` e `develop`.
 - **O frontend não tem CI ativo:** o workflow em `imob-erp-frontend/.github/workflows/ci.yml` é ignorado, porque o GitHub só lê `.github/workflows` da raiz. Lint, build e Vitest do frontend não rodam nos PRs.
 - Sem testes end-to-end.
@@ -328,7 +336,6 @@ O que ainda **não** existe (cards do Jira, projeto IMOB):
 
 | Card | Assunto |
 |---|---|
-| IMOB-24 | Visitas: filtros e regra de imóvel vendido |
 | IMOB-26 | Onboarding self-serve e webhook do Clerk |
 | IMOB-28 | Alertas de vencimento de contratos |
 | IMOB-33 | Encerrar/cancelar contrato revertendo imóvel e parcelas |
