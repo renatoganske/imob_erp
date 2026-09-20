@@ -8,3 +8,10 @@ logging:
   level:
     com.imobcrm: DEBUG
     org.hibernate.SQL: DEBUG
+
+app:
+  seed:
+    # Dados de exemplo no tenant abaixo (idempotente). Desligue com APP_SEED_ENABLED=false.
+    enabled: ${APP_SEED_ENABLED:true}
+    tenant-slug: ${APP_SEED_TENANT_SLUG:imobiliaria-dev}
+    admin-clerk-id: ${APP_SEED_ADMIN_CLERK_ID:}
