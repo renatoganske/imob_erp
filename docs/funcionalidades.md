@@ -2,16 +2,16 @@
 
 Levantamento do que está **implementado** no `develop` (até o PR #25). Baseado na leitura do código; para setup, arquitetura e fluxo de trabalho, ver [`projeto.md`](projeto.md).
 
-**Como ler os status**
+## Legenda dos status
 
 | Status | Significado |
 |---|---|
 | ✅ Validada | Implementada e coberta por testes automatizados |
-| 👁️ Sem validação visual | Implementada e testada, mas nunca conferida no navegador (desktop e 375px) |
-| 🟡 Parcial | Existe no código, mas incompleta ou sem tela |
+| 👁️ Sem validação visual | Implementada **e testada** (testes automatizados passam), mas ninguém conferiu a tela rodando no navegador, em desktop e em 375px (celular) |
+| 🟡 Parcial | Existe no código, mas está incompleta: falta uma tela, um efeito colateral ou um gatilho. A linha ou a seção diz o que falta |
 | ⬜ Não existe | Planejada; ver [Roadmap](#roadmap) |
 
-Caminhos: backend em `imob-erp-backend/src/main/java/com/imobcrm`, frontend em `imob-erp-frontend/src`.
+Caminhos: backend em `imob-erp-backend/src/main/java/com/imobcrm`, frontend em `imob-erp-frontend/src`. Os cards `IMOB-xx` estão no [board do Jira](https://renatoganskejr.atlassian.net/jira/software/projects/IMOB/boards). Termos como RN-xx, outbox e magic bytes estão no glossário de [`projeto.md`](projeto.md#11-glossário).
 
 ---
 
@@ -68,9 +68,10 @@ Cadastro, busca e galeria de fotos. Rotas `/api/v1/properties`:
 | Upload múltiplo, exclusão e drag and drop (tela) | 👁️ |
 | Excluir imóvel e mudar status pela tela | 🟡 os hooks existem em `hooks/useProperties.ts`; nenhuma tela os usa |
 | Campos por tipo de imóvel (área de terreno/construída etc.) | ⬜ IMOB-46 |
+| Verificar os critérios da tela de imóveis rodando o app (spike) | ⬜ IMOB-32 |
 
 **Limitações conhecidas**
-- O botão "Adicionar fotos" aparece para FINANCEIRO; o backend responde 403.
+- `canManagePhotos` (só ADMIN e CORRETOR) esconde as ações de **excluir** e **reordenar** para FINANCEIRO, mas **não cobre o envio**: o botão "Adicionar fotos" ainda aparece para ele e o backend responde 403.
 - Os testes mockam o S3. O upload real no R2 funciona no ambiente local, mas não foi verificado em staging.
 
 **Testes:** `PropertyServiceTest`, `PropertyPhotoUploadTest`, `PropertyPhotoOrderTest`, `PropertyServiceReorderTest`, `UploadValidatorTest`; no frontend, `PhotoUpload.test.tsx` e `PhotoUpload.reorder.test.tsx`.
@@ -153,7 +154,7 @@ Rotas `/api/v1/contracts`: `GET /` e `GET /{id}` (ADMIN, FINANCEIRO, CORRETOR); 
 | Criar, editar rascunho, ativar (imóvel, parcelas, comissão), PDF | ✅ |
 | Acesso restrito do corretor | ✅ (testes) · login real no Clerk não testado |
 | Fluxo criar → ativar → ver parcelas na tela | 👁️ IMOB-29 |
-| Encerrar/cancelar | 🟡 IMOB-33 |
+| Encerrar/cancelar | 🟡 IMOB-33: parcial no efeito. A API muda o status, mas não reverte o status do imóvel nem cancela as parcelas futuras; também não há tela |
 | Cálculo de reajuste | 🟡 `adjustmentIndex` é só um campo |
 | Alertas de vencimento | ⬜ IMOB-28 |
 
@@ -174,7 +175,7 @@ Rotas `/api/v1/financial` (todas ADMIN e FINANCEIRO): `GET /entries` (tipo, stat
 - RN-05: locação gera 12 parcelas mensais a partir do início do contrato; venda gera 1 lançamento.
 - RN-07: pagar lançamento já pago devolve `ENTRY_ALREADY_PAID`.
 - **Dashboard:** saldo do mês (recebido menos pago), a receber e a pagar no mês, e **inadimplência acumulada** (atrasados até o fim do mês consultado). O "mês corrente" usa o fuso de Brasília.
-- **Job de atrasados (RN-06)** (`OverdueJob` e `OverdueService`): todo dia às 6h de Brasília marca `PENDENTE` vencido como `ATRASADO`. Uma transação por tenant, com falha isolada; idempotente; com lock ShedLock (JDBC, migration V3) para várias instâncias.
+- **Job de atrasados (RN-06)** (`OverdueJob` e `OverdueService`): cron `0 0 6 * * *` com `zone = "America/Sao_Paulo"` (todo dia às 6h de Brasília). "Vencido" é `status = PENDENTE` **e** `dueDate < hoje` (estritamente menor: a parcela que vence hoje ainda não é marcada; "hoje" é a data atual no `Clock` da aplicação). Marca como `ATRASADO`. Uma transação por tenant, com falha isolada; idempotente; lock ShedLock (JDBC, migration V3, `lockAtMostFor` de 10 min) para várias instâncias.
 
 **Telas:** `/financeiro` (dashboard), `/financeiro/receber` e `/financeiro/pagar` (formulário de lançamento e lista com Pagar e Cancelar).
 
@@ -248,7 +249,7 @@ Rotas `/api/v1/users` (todas ADMIN): `GET /`, `POST /invite`, `PATCH /{id}/role`
 
 `POST /internal/v1/tenants` (IMOB-38), protegido pelo header `X-Operator-Key` (comparação em tempo constante; sem `OPERATOR_API_KEY` configurada o endpoint fica desligado).
 
-Recebe o nome da imobiliária e o e-mail do admin. Localiza a conta do Clerk pelo e-mail verificado (`CLERK_USER_NOT_FOUND` se não houver), cria o tenant (slug derivado do nome, plano `STARTER`) e o usuário ADMIN em uma transação, e grava `tenantId` e `role` no `publicMetadata` do Clerk fora da transação. É **idempotente**: repetir a chamada re-sincroniza o metadata. Conflitos tratados: `EMAIL_IN_USE`, `TENANT_SLUG_TAKEN`, `TENANT_MISMATCH`, `CLERK_TENANT_INVALID` e `CLERK_TENANT_NOT_FOUND` (IMOB-41: reaproveita o tenant já indicado no Clerk).
+Recebe `{ "tenantName", "adminEmail" }` (corpo JSON e exemplo de `curl` em [`projeto.md`](projeto.md#primeiro-acesso-conta-nova-no-clerk)). Localiza a conta do Clerk pelo e-mail verificado (`CLERK_USER_NOT_FOUND` se não houver), cria o tenant (slug derivado do nome, plano `STARTER`) e o usuário ADMIN em uma transação, e grava `tenantId` e `role` no `publicMetadata` do Clerk fora da transação. É **idempotente**: repetir a chamada re-sincroniza o metadata. Conflitos tratados: `EMAIL_IN_USE`, `TENANT_SLUG_TAKEN`, `TENANT_MISMATCH`, `CLERK_TENANT_INVALID` e `CLERK_TENANT_NOT_FOUND` (IMOB-41: reaproveita o tenant já indicado no Clerk).
 
 | Item | Status |
 |---|---|

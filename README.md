@@ -10,6 +10,8 @@ Fluxo principal: **Lead → fechamento → contrato → parcelas financeiras →
 | `imob-erp-frontend/` | Next.js 14 + Clerk |
 | `docs/` | Documentação |
 
+Repositório: <https://github.com/renatoganske/imob_erp> · Backlog: [board do Jira (projeto IMOB)](https://renatoganskejr.atlassian.net/jira/software/projects/IMOB/boards)
+
 ## Documentação
 
 - [`docs/projeto.md`](docs/projeto.md): visão, stack, como rodar, variáveis de ambiente, papéis, testes, CI e fluxo de trabalho.
@@ -18,9 +20,14 @@ Fluxo principal: **Lead → fechamento → contrato → parcelas financeiras →
 
 ## Início rápido
 
+Comandos de PowerShell (no bash, troque `;` por `&&` ou rode um por linha; o `JAVA_HOME` e as variáveis de ambiente estão em [`docs/projeto.md`](docs/projeto.md#4-rodando-localmente)):
+
 ```powershell
-docker compose up -d                       # Postgres (5434) e Mailpit (8025)
-cd imob-erp-backend; ./mvnw spring-boot:run # API em :8080 (JDK 21)
+# terminal 1, na raiz
+docker compose up -d                        # Postgres (5434) e Mailpit (8025)
+cd imob-erp-backend; ./mvnw spring-boot:run # API em :8080 (JDK 21); fica em execução
+
+# terminal 2, na raiz
 cd imob-erp-frontend; npm ci; npm run dev   # app em :3000
 ```
 
