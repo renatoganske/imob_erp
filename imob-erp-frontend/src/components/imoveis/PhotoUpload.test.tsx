@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_PHOTO_BYTES, MAX_PHOTOS, PhotoUpload, UPLOAD_CONCURRENCY, planUpload } from "./PhotoUpload";
+import { MAX_PHOTO_BYTES, MAX_PHOTOS, PhotoUpload, UPLOAD_CONCURRENCY, photoKey, planUpload } from "./PhotoUpload";
 
 vi.mock("@clerk/nextjs", () => ({ useAuth: () => ({ getToken: async () => "t" }) }));
 
@@ -176,5 +176,68 @@ describe("planUpload (função pura)", () => {
     const files = [png("a.png"), pdf];
     planUpload(files, 0);
     expect(files.map((f) => f.name)).toEqual(["a.png", "doc.pdf"]);
+  });
+});
+
+describe("photoKey (função pura)", () => {
+  it("usa o último segmento do caminho e ignora a query string", () => {
+    expect(photoKey("https://cdn.x/tenant/properties/p1/abc.png")).toBe("abc.png");
+    expect(photoKey("https://cdn.x/p1/abc.png?sig=1/2")).toBe("abc.png");
+  });
+});
+
+describe("PhotoUpload — exclusão", () => {
+  const fetchMock = vi.fn();
+  const urls = ["https://cdn.x/p1/a.png", "https://cdn.x/p1/b.png"];
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sem permissão não mostra a ação de excluir", () => {
+    render(<PhotoUpload propertyId="p1" photos={urls} onUploaded={() => {}} />);
+    expect(screen.queryByRole("button", { name: /excluir foto/i })).not.toBeInTheDocument();
+  });
+
+  it("cancelar a confirmação não chama a API", async () => {
+    const user = userEvent.setup();
+    render(<PhotoUpload propertyId="p1" photos={urls} onUploaded={() => {}} canDelete />);
+
+    await user.click(screen.getByRole("button", { name: "Excluir foto 2" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("confirmar chama DELETE com a chave da foto e recarrega a galeria", async () => {
+    fetchMock.mockImplementation(ok);
+    const onUploaded = vi.fn();
+    const user = userEvent.setup();
+    render(<PhotoUpload propertyId="p1" photos={urls} onUploaded={onUploaded} canDelete />);
+
+    await user.click(screen.getByRole("button", { name: "Excluir foto 2" }));
+    await user.click(screen.getByRole("button", { name: "Excluir" }));
+
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain("/api/v1/properties/p1/photos/b.png");
+    expect(init.method).toBe("DELETE");
+    expect(init.headers).toEqual({ Authorization: "Bearer t" });
+  });
+
+  it("falha na API mostra o erro e não recarrega", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "Foto não encontrada" }), { status: 404 }));
+    const onUploaded = vi.fn();
+    const user = userEvent.setup();
+    render(<PhotoUpload propertyId="p1" photos={urls} onUploaded={onUploaded} canDelete />);
+
+    await user.click(screen.getByRole("button", { name: "Excluir foto 1" }));
+    await user.click(screen.getByRole("button", { name: "Excluir" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Foto não encontrada");
+    expect(onUploaded).not.toHaveBeenCalled();
   });
 });
