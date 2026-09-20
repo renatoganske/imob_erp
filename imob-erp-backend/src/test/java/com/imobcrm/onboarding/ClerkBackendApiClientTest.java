@@ -74,6 +74,56 @@ class ClerkBackendApiClientTest {
     }
 
     @Test
+    void readsTheTenantIdAlreadyInThePublicMetadata() {
+        server.expect(requestTo("https://clerk.test/v1/users?email_address=a%40x.com"))
+                .andRespond(withSuccess("""
+                        [{"id":"user_1","public_metadata":{"tenantId":"t-9","role":"ADMIN"},
+                          "email_addresses":[{"email_address":"a@x.com","verification":{"status":"verified"}}]}]
+                        """, MediaType.APPLICATION_JSON));
+
+        assertEquals("t-9", client.findByVerifiedEmail("a@x.com").orElseThrow().tenantId());
+    }
+
+    @Test
+    void listsOnlyTheVerifiedEmailsInLowerCase() {
+        server.expect(requestTo("https://clerk.test/v1/users/user_1"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {"id":"user_1","email_addresses":[
+                          {"email_address":"Ok@X.com","verification":{"status":"verified"}},
+                          {"email_address":"no@x.com","verification":{"status":"unverified"}}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertEquals(java.util.Set.of("ok@x.com"), client.findVerifiedEmails("user_1"));
+    }
+
+    @Test
+    void createsTheInvitationWithMetadataAndRedirect() {
+        server.expect(requestTo("https://clerk.test/v1/invitations"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"email_address":"a@x.com","redirect_url":"http://localhost:3000/sign-up",
+                         "public_metadata":{"tenantId":"t-1","role":"CORRETOR"}}
+                        """))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        client.createInvitation("a@x.com", Map.of("tenantId", "t-1", "role", "CORRETOR"), "http://localhost:3000/sign-up");
+
+        server.verify();
+    }
+
+    @Test
+    void mapsAClerkInvitationRefusalToAConflict() {
+        server.expect(requestTo("https://clerk.test/v1/invitations"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withStatus(
+                        org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY));
+
+        var e = assertThrows(com.imobcrm.shared.exception.ConflictException.class,
+                () -> client.createInvitation("a@x.com", Map.of(), "http://x/sign-up"));
+        assertEquals("INVITE_REJECTED", e.getCode());
+    }
+
+    @Test
     void mapsClerkFailuresToAnExternalServiceError() {
         server.expect(requestTo("https://clerk.test/v1/users/user_1/metadata")).andRespond(withServerError());
 

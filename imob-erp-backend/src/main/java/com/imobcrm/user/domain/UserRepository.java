@@ -17,4 +17,7 @@ public interface UserRepository {
     boolean existsByIdAndTenantId(UUID id, UUID tenantId);
 
     boolean existsByEmailIgnoreCase(String email);
+
+    /** Convites ainda nao aceitos do tenant (clerk_user_id provisorio {@code pending:...}). */
+    List<User> findPendingInvites(UUID tenantId);
 }

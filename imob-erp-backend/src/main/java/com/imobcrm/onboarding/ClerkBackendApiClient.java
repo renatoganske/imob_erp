@@ -2,6 +2,7 @@ package com.imobcrm.onboarding;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.imobcrm.config.ClerkProperties;
+import com.imobcrm.shared.exception.ConflictException;
 import com.imobcrm.shared.exception.ExternalServiceException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,11 +11,15 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -53,10 +58,49 @@ public class ClerkBackendApiClient implements ClerkUserDirectory {
         }
         for (JsonNode user : users) {
             if (hasVerifiedEmail(user, email)) {
-                return Optional.of(new ClerkUser(user.path("id").asText(), displayName(user, email)));
+                String tenantId = user.path("public_metadata").path("tenantId").asText(null);
+                return Optional.of(new ClerkUser(user.path("id").asText(), displayName(user, email), tenantId));
             }
         }
         return Optional.empty();
+    }
+
+    @Override
+    public Set<String> findVerifiedEmails(String clerkUserId) {
+        JsonNode user;
+        try {
+            user = client.get().uri("/v1/users/{id}", clerkUserId).retrieve().body(JsonNode.class);
+        } catch (RestClientException e) {
+            throw unavailable("buscar e-mails do usuario", e);
+        }
+        Set<String> emails = new HashSet<>();
+        if (user != null) {
+            for (JsonNode address : user.path("email_addresses")) {
+                if ("verified".equals(address.path("verification").path("status").asText())) {
+                    emails.add(address.path("email_address").asText().toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+        return emails;
+    }
+
+    @Override
+    public void createInvitation(String email, Map<String, Object> publicMetadata, String redirectUrl) {
+        try {
+            client.post()
+                    .uri("/v1/invitations")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("email_address", email, "public_metadata", publicMetadata, "redirect_url", redirectUrl))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 409 || e.getStatusCode().value() == 422) {
+                throw new ConflictException("O Clerk recusou o convite: ja existe convite ou conta para " + email, "INVITE_REJECTED");
+            }
+            throw unavailable("criar convite", e);
+        } catch (RestClientException e) {
+            throw unavailable("criar convite", e);
+        }
     }
 
     @Override

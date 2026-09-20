@@ -1,5 +1,6 @@
 package com.imobcrm.config;
 
+import com.imobcrm.user.domain.PendingInviteLinker;
 import com.imobcrm.user.domain.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +26,7 @@ public class SecurityConfig {
     private final ClerkProperties clerkProperties;
     private final AppCorsProperties corsProperties;
     private final UserRepository userRepository;
+    private final PendingInviteLinker inviteLinker;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -38,7 +40,7 @@ public class SecurityConfig {
                         // Autenticado pela chave de operador dentro do controller, nao por JWT.
                         .requestMatchers("/internal/**").permitAll()
                         .anyRequest().authenticated())
-                .addFilterBefore(new ClerkJwtAuthenticationFilter(clerkProperties, userRepository), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new ClerkJwtAuthenticationFilter(clerkProperties, userRepository, inviteLinker), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new RequestLoggingFilter(), ClerkJwtAuthenticationFilter.class);
 
         return http.build();
