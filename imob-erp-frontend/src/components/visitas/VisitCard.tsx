@@ -2,7 +2,8 @@ import { Badge } from "@/components/ui/badge";
 import { VISIT_STATUS_LABEL } from "@/lib/labels";
 import type { Visit } from "@/types/visit";
 
-const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
+// A data aparece no título do grupo (VisitList); o cartão mostra só o horário, no fuso de Brasília.
+const time = new Intl.DateTimeFormat("pt-BR", { timeStyle: "short", timeZone: "America/Sao_Paulo" });
 
 export function VisitCard({
   visit,
@@ -24,7 +25,7 @@ export function VisitCard({
         <p className="font-medium">{propertyTitle ?? "Imóvel"}</p>
         <p className="text-muted-foreground">
           {leadName ? `${leadName} · ` : ""}
-          {dateTime.format(new Date(visit.scheduledAt))}
+          {time.format(new Date(visit.scheduledAt))}
         </p>
       </div>
       <Badge variant={visit.status === "REALIZADA" ? "success" : visit.status === "CANCELADA" ? "destructive" : "info"}>

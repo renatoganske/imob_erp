@@ -138,8 +138,8 @@ Resposta (`TenantOnboardingResponse`): `{ tenantId, slug, adminUserId, adminCler
 
 - Três papéis: `ADMIN`, `CORRETOR` e `FINANCEIRO`. A matriz completa por módulo está em [funcionalidades.md](funcionalidades.md#papéis-e-permissões).
 - O backend é a fonte da verdade (`@PreAuthorize` mais regras por dono nos services); o frontend só espelha em `lib/permissions.ts` para esconder menus e ações.
-- **Isolamento por tenant:** o `tenantId` vem sempre do token (`TenantContext`), nunca do corpo. Toda consulta filtra por ele, e ids recebidos são validados contra o tenant. Corretor só vê os próprios leads e contratos; recurso de outro tenant ou de outro corretor devolve 404.
-- **Visitas e comissões não têm escopo por corretor:** qualquer corretor lista todas as visitas e comissões do tenant (a confirmar com o produto se é intencional). Ver [Visitas](funcionalidades.md#3-visitas) e [Comissões](funcionalidades.md#6-comissões).
+- **Isolamento por tenant:** o `tenantId` vem sempre do token (`TenantContext`), nunca do corpo. Toda consulta filtra por ele, e ids recebidos são validados contra o tenant. Corretor só vê os próprios leads, contratos e visitas; recurso de outro tenant ou de outro corretor devolve 404.
+- **Comissões não têm escopo por corretor:** qualquer corretor lista todas as comissões do tenant (a confirmar com o produto se é intencional). As visitas passaram a ter esse escopo no IMOB-24. Ver [Visitas](funcionalidades.md#3-visitas) e [Comissões](funcionalidades.md#6-comissões).
 - Os testes de isolamento (`TenantIsolationTest`) bloqueiam o CI.
 
 ## 6. Decisões de arquitetura

@@ -6,14 +6,25 @@ import { api } from "@/lib/api";
 import type { PageResponse } from "@/types/common";
 import type { Visit, VisitRequest, VisitStatus } from "@/types/visit";
 
-export function useVisits(params: { agentId?: string } = {}) {
+export interface VisitQuery {
+  agentId?: string;
+  status?: VisitStatus;
+  /** Datas yyyy-MM-dd, inclusivas (fuso de Brasília no backend). */
+  from?: string;
+  to?: string;
+  size?: number;
+}
+
+export function useVisits(params: VisitQuery = {}) {
   const { getToken } = useAuth();
   const [data, setData] = useState<PageResponse<Visit> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const query = new URLSearchParams(
-    Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][]
+    Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== "")
+      .map(([k, v]) => [k, String(v)])
   ).toString();
 
   const reload = useCallback(() => {
