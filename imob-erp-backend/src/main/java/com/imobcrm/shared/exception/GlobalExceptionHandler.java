@@ -14,9 +14,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import java.sql.SQLException;
+import java.util.Objects;
+import java.util.stream.Stream;
+
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final String UNIQUE_VIOLATION = "23505";
+    /** Limite defensivo contra cadeias de causas circulares. */
+    private static final int MAX_CAUSE_DEPTH = 20;
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ErrorResponse> handleApiException(ApiException ex) {
@@ -66,8 +74,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         log.warn("Violacao de integridade de dados", ex);
+        if (isUniqueViolation(ex)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ErrorResponse("Registro duplicado: ja existe um registro com estes dados", "DUPLICATE_RESOURCE"));
+        }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("Dados invalidos: verifique as referencias informadas", "DATA_INTEGRITY_VIOLATION"));
+    }
+
+    /** SQLSTATE 23505 (unique_violation) em qualquer ponto da cadeia de causas: corrida entre duas requisicoes iguais. */
+    static boolean isUniqueViolation(Throwable error) {
+        return Stream.iterate(error, Objects::nonNull, Throwable::getCause)
+                .limit(MAX_CAUSE_DEPTH)
+                .anyMatch(cause -> cause instanceof SQLException sql && UNIQUE_VIOLATION.equals(sql.getSQLState()));
     }
 
     @ExceptionHandler(Exception.class)
