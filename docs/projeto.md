@@ -8,7 +8,7 @@ ERP + CRM para pequenas imobiliárias (2 a 10 corretores), em modelo SaaS **mult
 
 Fluxo principal: **Lead → fechamento → contrato → parcelas financeiras → comissão do corretor.**
 
-Módulos: imóveis (com fotos), leads (kanban), visitas, contratos, financeiro, comissões, usuários e convites e onboarding assistido de imobiliárias. A infraestrutura de e-mail (outbox e envio por SMTP) está pronta, mas **nada a usa ainda**: os alertas de vencimento (IMOB-28) são o primeiro gatilho previsto, e o convite de corretor passa pelo Clerk.
+Módulos: imóveis (com fotos), leads (kanban), visitas, contratos, financeiro, comissões, usuários e convites e onboarding assistido de imobiliárias. A infraestrutura de e-mail (outbox e envio por SMTP) está pronta, mas **nada a usa ainda**: os alertas de vencimento de contratos (IMOB-28) existem só na tela (dashboard e lista de contratos), sem e-mail, e o convite de corretor passa pelo Clerk.
 
 Repositório: <https://github.com/renatoganske/imob_erp>. Backlog: [board do Jira (projeto IMOB)](https://renatoganskejr.atlassian.net/jira/software/projects/IMOB/boards); os cards `IMOB-xx` citados nos docs estão lá.
 

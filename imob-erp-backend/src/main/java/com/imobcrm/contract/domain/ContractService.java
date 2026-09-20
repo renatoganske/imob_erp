@@ -3,6 +3,7 @@ package com.imobcrm.contract.domain;
 import com.imobcrm.commission.domain.CommissionService;
 import com.imobcrm.contract.api.ContractRequest;
 import com.imobcrm.contract.api.ContractResponse;
+import com.imobcrm.contract.api.ExpiringContractsSummary;
 import com.imobcrm.contract.domain.enums.ContractStatus;
 import com.imobcrm.contract.domain.enums.ContractType;
 import com.imobcrm.contract.infra.ContractMapper;
@@ -25,7 +26,9 @@ import com.imobcrm.user.domain.enums.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -33,8 +36,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.ToLongFunction;
 
 @Slf4j
 @Service
@@ -50,13 +57,54 @@ public class ContractService {
     private final CommissionService commissionService;
     private final R2StorageService storageService;
     private final UploadValidator uploadValidator;
+    private final Clock clock;
 
+    /**
+     * {@code expiringInDays} (IMOB-28) restringe a locacoes ATIVAS com {@code end_date} de hoje ate hoje + N dias,
+     * ordenadas pelo vencimento mais proximo; combinar com outro status/tipo e recusado em vez de devolver vazio.
+     */
     @Transactional(readOnly = true)
-    public Page<ContractResponse> search(ContractStatus status, ContractType type, Pageable pageable) {
+    public Page<ContractResponse> search(ContractStatus status, ContractType type, Integer expiringInDays, Pageable pageable) {
         // Corretor enxerga apenas os contratos em que e o corretor responsavel.
         UUID agentScope = isCorretor() ? TenantContext.userId() : null;
-        return contractRepository.search(TenantContext.tenantId(), agentScope, status, type, pageable)
+        Optional<ExpiryWindow> window = Optional.ofNullable(expiringInDays)
+                .map(days -> ExpiryWindow.endingWithin(LocalDate.now(clock), days));
+        window.ifPresent(w -> requireCompatibleWithExpiry(status, type));
+
+        return contractRepository.search(
+                        TenantContext.tenantId(), agentScope,
+                        window.map(w -> ContractStatus.ATIVO).orElse(status),
+                        window.map(w -> ContractType.LOCACAO).orElse(type),
+                        window.map(ExpiryWindow::from).orElse(null),
+                        window.map(ExpiryWindow::to).orElse(null),
+                        window.map(w -> soonestFirst(pageable)).orElse(pageable))
                 .map(this::toReadResponse);
+    }
+
+    /** Contagem acumulada (30/60/90 dias) das locacoes ativas que vencem, para o dashboard. */
+    @Transactional(readOnly = true)
+    public ExpiringContractsSummary expiringSummary() {
+        UUID tenantId = TenantContext.tenantId();
+        LocalDate today = LocalDate.now(clock);
+        ToLongFunction<Integer> countWithin = days -> {
+            ExpiryWindow window = ExpiryWindow.endingWithin(today, days);
+            return contractRepository.countActiveRentalsEndingBetween(tenantId, window.from(), window.to());
+        };
+        return new ExpiringContractsSummary(countWithin.applyAsLong(30), countWithin.applyAsLong(60), countWithin.applyAsLong(90));
+    }
+
+    private static void requireCompatibleWithExpiry(ContractStatus status, ContractType type) {
+        boolean conflicting = (status != null && status != ContractStatus.ATIVO)
+                || (type != null && type != ContractType.LOCACAO);
+        if (conflicting) {
+            throw new BusinessException("expiringInDays so se aplica a locacoes ativas", "INVALID_EXPIRY_FILTER");
+        }
+    }
+
+    private static Pageable soonestFirst(Pageable pageable) {
+        return pageable.getSort().isSorted()
+                ? pageable
+                : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("endDate"));
     }
 
     @Transactional(readOnly = true)

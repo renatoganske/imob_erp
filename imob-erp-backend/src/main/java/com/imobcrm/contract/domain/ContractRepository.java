@@ -5,6 +5,7 @@ import com.imobcrm.contract.domain.enums.ContractType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,6 +15,10 @@ public interface ContractRepository {
 
     Optional<Contract> findByIdAndTenantId(UUID id, UUID tenantId);
 
-    Page<Contract> search(UUID tenantId, UUID agentId, ContractStatus status,
-                           ContractType type, Pageable pageable);
+    /** {@code endFrom}/{@code endTo} sao opcionais e inclusivos; com eles, contratos sem {@code end_date} ficam fora. */
+    Page<Contract> search(UUID tenantId, UUID agentId, ContractStatus status, ContractType type,
+                           LocalDate endFrom, LocalDate endTo, Pageable pageable);
+
+    /** Locacoes ATIVAS com {@code end_date} entre as datas (inclusivas), para os alertas de vencimento. */
+    long countActiveRentalsEndingBetween(UUID tenantId, LocalDate from, LocalDate to);
 }

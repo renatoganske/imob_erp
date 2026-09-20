@@ -28,8 +28,16 @@ public class ContractController {
     public Page<ContractResponse> search(
             @RequestParam(required = false) ContractStatus status,
             @RequestParam(required = false) ContractType type,
+            @RequestParam(required = false) Integer expiringInDays,
             Pageable pageable) {
-        return contractService.search(status, type, pageable);
+        return contractService.search(status, type, expiringInDays, pageable);
+    }
+
+    // Alertas de vencimento (IMOB-28): dado financeiro agregado, sem escopo por corretor.
+    @GetMapping("/expiring-summary")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCEIRO')")
+    public ExpiringContractsSummary expiringSummary() {
+        return contractService.expiringSummary();
     }
 
     @GetMapping("/{id}")

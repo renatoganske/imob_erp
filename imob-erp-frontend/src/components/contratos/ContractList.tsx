@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { CONTRACT_TYPE_LABEL } from "@/lib/labels";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, todayLocal } from "@/lib/utils";
 import type { Contract } from "@/types/contract";
 import { ContractStatusBadge } from "./ContractStatusBadge";
+import { ExpiryBadge } from "./ExpiryBadge";
 
-export function ContractList({ contracts }: { contracts: Contract[] }) {
+export function ContractList({ contracts, today = todayLocal() }: { contracts: Contract[]; today?: string }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-card">
       <table className="w-full min-w-[320px] text-sm">
@@ -27,7 +28,10 @@ export function ContractList({ contracts }: { contracts: Contract[] }) {
               <td className="px-4 py-3 tabular-nums">{formatCurrency(contract.value)}</td>
               <td className="hidden px-4 py-3 tabular-nums sm:table-cell">{formatDate(contract.startDate)}</td>
               <td className="px-4 py-3">
-                <ContractStatusBadge status={contract.status} />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <ContractStatusBadge status={contract.status} />
+                  <ExpiryBadge contract={contract} today={today} />
+                </div>
               </td>
             </tr>
           ))}
