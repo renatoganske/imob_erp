@@ -10,6 +10,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -77,6 +78,7 @@ public class Property extends AuditEntity {
     private PropertyPurpose purpose;
 
     @ElementCollection
+    @OrderColumn(name = "photo_order")
     @Builder.Default
     private List<String> photos = new ArrayList<>();
 

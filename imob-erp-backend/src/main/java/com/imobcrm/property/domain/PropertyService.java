@@ -20,8 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -130,6 +135,31 @@ public class PropertyService {
         property.getPhotos().remove(photoUrl);
         storageService.delete(photoKeyPrefix(property) + "/" + photoKey);
         return propertyMapper.toResponseDTO(propertyRepository.save(property));
+    }
+
+    /** Mesmo lock das demais operacoes de foto: reordenar concorrendo com upload/remocao nao pode perder fotos. */
+    @Transactional
+    public PropertyResponse reorderPhotos(UUID id, List<String> keys) {
+        Property property = findOwnedForUpdate(id);
+        List<String> ordered = reordered(property.getPhotos(), keys);
+        property.getPhotos().clear();
+        property.getPhotos().addAll(ordered);
+        return propertyMapper.toResponseDTO(propertyRepository.save(property));
+    }
+
+    /** Puro: devolve as URLs na ordem das chaves, exigindo exatamente o mesmo conjunto de fotos do imovel. */
+    static List<String> reordered(List<String> photoUrls, List<String> keys) {
+        Map<String, String> urlByKey = photoUrls.stream()
+                .collect(Collectors.toMap(PropertyService::lastSegment, Function.identity(), (first, second) -> first));
+        boolean sameSet = keys.size() == photoUrls.size() && Set.copyOf(keys).equals(urlByKey.keySet());
+        if (!sameSet) {
+            throw new BusinessException("A lista deve conter exatamente as fotos do imovel, sem repeticoes", "PHOTO_ORDER_MISMATCH");
+        }
+        return keys.stream().map(urlByKey::get).toList();
+    }
+
+    private static String lastSegment(String url) {
+        return url.substring(url.lastIndexOf('/') + 1);
     }
 
     private static void requireRoomForAnotherPhoto(Property property) {
