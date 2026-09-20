@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.imobcrm.config.ClerkProperties;
 import com.imobcrm.shared.exception.ExternalServiceException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -20,8 +22,15 @@ public class ClerkBackendApiClient implements ClerkUserDirectory {
 
     private final RestClient client;
 
-    public ClerkBackendApiClient(RestClient.Builder builder, ClerkProperties properties,
+    @Autowired
+    public ClerkBackendApiClient(ClerkProperties properties,
                                  @Value("${clerk.api-url:https://api.clerk.com}") String apiUrl) {
+        // Fixo no cliente HTTP do JDK: o padrao do Spring Boot 3.3 (HttpURLConnection) nao suporta PATCH (IMOB-39).
+        this(RestClient.builder().requestFactory(new JdkClientHttpRequestFactory()), properties, apiUrl);
+    }
+
+    /** Para testes com MockRestServiceServer: o builder ja chega com a request factory do mock. */
+    ClerkBackendApiClient(RestClient.Builder builder, ClerkProperties properties, String apiUrl) {
         this.client = builder
                 .baseUrl(apiUrl)
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.secretKey())
