@@ -245,6 +245,7 @@ curl -X POST http://localhost:8080/internal/v1/tenants   -H "X-Operator-Key: $OP
 4. O cliente precisa **sair e entrar de novo** para receber um token com o metadata novo.
 
 - **Idempotente:** repetir a chamada não duplica nada e re-sincroniza o metadata; se o Clerk falhar (`502`), basta repetir.
+- **Usuário que já tem `tenantId` no metadata do Clerk:** o admin é vinculado **àquela** imobiliária (sem criar outra), desde que o `tenantName` corresponda a ela (`409 TENANT_MISMATCH` se não) e o tenant exista (`422 CLERK_TENANT_NOT_FOUND` / `CLERK_TENANT_INVALID` caso contrário).
 - **Erros:** `403` chave inválida · `422 CLERK_USER_NOT_FOUND` (sem conta verificada no Clerk) · `409 EMAIL_IN_USE` / `TENANT_SLUG_TAKEN`.
 - O vínculo só usa e-mail **verificado** no Clerk, para ninguém assumir o e-mail de outra pessoa.
 

@@ -64,6 +64,9 @@ public class OnboardingService {
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new ConflictException("Este e-mail ja esta vinculado a uma imobiliaria (convite pendente ou usuario existente)", "EMAIL_IN_USE");
         }
+        if (clerkUser.tenantId() != null) {
+            return linkToTenantFromClerk(slug, email, clerkUser);
+        }
         if (tenantRepository.findBySlug(slug).isPresent()) {
             throw new ConflictException("Ja existe uma imobiliaria com o identificador '" + slug + "'", "TENANT_SLUG_TAKEN");
         }
@@ -75,6 +78,37 @@ public class OnboardingService {
                 .plan(Tenant.Plan.STARTER)
                 .active(true)
                 .build());
+        User admin = userRepository.save(User.builder()
+                .id(UUID.randomUUID())
+                .tenantId(tenant.getId())
+                .clerkUserId(clerkUser.id())
+                .name(clerkUser.name())
+                .email(email)
+                .role(Role.ADMIN)
+                .active(true)
+                .build());
+        return response(tenant, admin, true);
+    }
+
+    /**
+     * O usuario do Clerk ja aponta para uma imobiliaria (IMOB-41): vincula o admin NELA em vez de criar outra,
+     * senao o tenant do token e o da linha em users divergem e o acesso e negado.
+     */
+    private TenantOnboardingResponse linkToTenantFromClerk(String slug, String email, ClerkUser clerkUser) {
+        UUID tenantId;
+        try {
+            tenantId = UUID.fromString(clerkUser.tenantId());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("O tenantId no publicMetadata do Clerk ('" + clerkUser.tenantId()
+                    + "') nao e um UUID valido. Corrija ou limpe o metadata do usuario.", "CLERK_TENANT_INVALID");
+        }
+        Tenant tenant = tenantRepository.findById(tenantId).orElseThrow(() -> new BusinessException(
+                "O Clerk aponta para a imobiliaria " + tenantId + ", que nao existe no banco. Corrija ou limpe o metadata do usuario.",
+                "CLERK_TENANT_NOT_FOUND"));
+        if (!tenant.getSlug().equals(slug)) {
+            throw new ConflictException("O Clerk ja vincula este usuario a imobiliaria '" + tenant.getName()
+                    + "'. Use esse nome ou limpe o metadata do usuario.", "TENANT_MISMATCH");
+        }
         User admin = userRepository.save(User.builder()
                 .id(UUID.randomUUID())
                 .tenantId(tenant.getId())

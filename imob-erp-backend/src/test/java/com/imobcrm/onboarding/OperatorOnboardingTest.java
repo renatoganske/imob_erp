@@ -61,6 +61,74 @@ class OperatorOnboardingTest extends IntegrationTestBase {
         when(clerk.findByVerifiedEmail(email)).thenReturn(Optional.of(new ClerkUser(clerkId, "Dono " + run)));
     }
 
+    private UUID seedTenant(String slug) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO tenants (id, name, slug, plan) VALUES (?, ?, ?, 'STARTER')", id, "Imob " + slug, slug);
+        return id;
+    }
+
+    private int tenantCount() {
+        return jdbc.queryForObject("SELECT count(*) FROM tenants", Integer.class);
+    }
+
+    @Test
+    void reusesTheTenantAlreadyInTheClerkMetadataInsteadOfCreatingAnother() throws Exception {
+        String email = email("reusa");
+        UUID existingTenant = seedTenant("imob-existente-" + run);
+        when(clerk.findByVerifiedEmail(email)).thenReturn(
+                Optional.of(new ClerkUser("user_reusa_" + run, "Dono", existingTenant.toString())));
+        int before = tenantCount();
+
+        create(KEY, "Imob Existente " + run, email)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.tenantId").value(existingTenant.toString()));
+
+        assertEquals(before, tenantCount());
+        assertEquals(existingTenant, jdbc.queryForObject("SELECT tenant_id FROM users WHERE email = ?", UUID.class, email));
+        verify(clerk).mergePublicMetadata("user_reusa_" + run, Map.of("tenantId", existingTenant.toString(), "role", "ADMIN"));
+    }
+
+    @Test
+    void refusesWhenTheNameDiffersFromTheTenantTheClerkAlreadyPointsTo() throws Exception {
+        String email = email("difere");
+        UUID existingTenant = seedTenant("imob-outra-" + run);
+        when(clerk.findByVerifiedEmail(email)).thenReturn(
+                Optional.of(new ClerkUser("user_difere_" + run, "Dono", existingTenant.toString())));
+        int before = tenantCount();
+
+        create(KEY, "Nome Diferente " + run, email)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TENANT_MISMATCH"));
+
+        assertEquals(before, tenantCount());
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Integer.class, email));
+        verify(clerk, never()).mergePublicMetadata(anyString(), any());
+    }
+
+    @Test
+    void failsClearlyWhenTheClerkTenantDoesNotExistInTheDatabase() throws Exception {
+        String email = email("orfao");
+        when(clerk.findByVerifiedEmail(email)).thenReturn(
+                Optional.of(new ClerkUser("user_orfao_" + run, "Dono", UUID.randomUUID().toString())));
+        int before = tenantCount();
+
+        create(KEY, "Qualquer " + run, email)
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("CLERK_TENANT_NOT_FOUND"));
+
+        assertEquals(before, tenantCount());
+    }
+
+    @Test
+    void failsClearlyWhenTheClerkTenantIdIsNotAUuid() throws Exception {
+        String email = email("lixo");
+        when(clerk.findByVerifiedEmail(email)).thenReturn(Optional.of(new ClerkUser("user_lixo_" + run, "Dono", "nao-e-uuid")));
+
+        create(KEY, "Qualquer " + run, email)
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("CLERK_TENANT_INVALID"));
+    }
+
     @Test
     void createsTenantAndAdminSyncsClerkMetadataAndAdminCanLogin() throws Exception {
         String email = email("dono");
