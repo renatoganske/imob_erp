@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
+import { formatPhone } from "@/lib/masks";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { UserSelect } from "@/components/shared/EntitySelects";
@@ -63,7 +65,7 @@ export function LeadFormModal({ open, onClose, onCreated }: { open: boolean; onC
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="phone">Telefone</Label>
-              <Input id="phone" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <MaskedInput id="phone"required mask={formatPhone} value={form.phone} onValueChange={(phone) => setForm({ ...form, phone })} />
             </div>
             <div>
               <Label htmlFor="email">E-mail</Label>

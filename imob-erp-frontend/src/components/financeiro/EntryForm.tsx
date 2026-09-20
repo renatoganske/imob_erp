@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/masked-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { ApiRequestError } from "@/lib/api";
@@ -20,7 +21,7 @@ const CATEGORIES: Record<FinancialType, FinancialCategory[]> = {
 // O tipo vem da tela (receber = receita, pagar = despesa): não é uma escolha do usuário.
 export function EntryForm({ type, onCreated }: { type: FinancialType; onCreated: () => void }) {
   const { create } = useFinancialMutations();
-  const empty = () => ({ category: "OUTRO" as FinancialCategory, description: "", value: "", dueDate: todayLocal() });
+  const empty = () => ({ category: "OUTRO" as FinancialCategory, description: "", value: 0, dueDate: todayLocal() });
   const [form, setForm] = useState(empty);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export function EntryForm({ type, onCreated }: { type: FinancialType; onCreated:
     setSubmitting(true);
     setError(null);
     try {
-      await create({ type, category: form.category, description: form.description, value: Number(form.value), dueDate: form.dueDate });
+      await create({ type, category: form.category, description: form.description, value: form.value, dueDate: form.dueDate });
       setForm(empty());
       onCreated();
     } catch (err) {
@@ -63,16 +64,7 @@ export function EntryForm({ type, onCreated }: { type: FinancialType; onCreated:
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="value">Valor (R$)</Label>
-          <Input
-            id="value"
-            type="number"
-            required
-            min="0.01"
-            step="0.01"
-            className="w-36"
-            value={form.value}
-            onChange={(e) => setForm({ ...form, value: e.target.value })}
-          />
+          <CurrencyInput id="value" required className="w-40" value={form.value} onValueChange={(value) => setForm({ ...form, value })} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="dueDate">Vencimento</Label>
