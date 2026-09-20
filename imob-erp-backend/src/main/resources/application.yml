@@ -22,6 +22,21 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 60MB
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS:false}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
+
+notification:
+  email:
+    from: ${MAIL_FROM:no-reply@imob-erp.local}
 
 server:
   port: ${PORT:8080}

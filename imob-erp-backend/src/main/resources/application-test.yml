@@ -4,6 +4,12 @@ spring:
       ddl-auto: validate
     show-sql: false
 
+notification:
+  email:
+    # Nos testes o dispatcher e chamado explicitamente; o agendador nao deve competir com eles.
+    dispatch-delay-ms: 3600000
+    dispatch-initial-delay-ms: 3600000
+
 clerk:
   secret-key: sk_test_fake_for_ci
   jwks-url: http://localhost/fake-jwks
