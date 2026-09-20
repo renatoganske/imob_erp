@@ -8,15 +8,19 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -24,6 +28,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -122,6 +127,58 @@ class PropertyPhotoUploadTest extends IntegrationTestBase {
 
         verify(s3Client, never()).putObject(any(PutObjectRequest.class), any(RequestBody.class));
         assertEquals(20, jdbc.queryForObject("SELECT count(*) FROM property_photos WHERE property_id = ?", Integer.class, property));
+    }
+
+    @Test
+    void r2RefusingTheUploadReturns502WithTheS3ErrorCodeAndStoresNothing() throws Exception {
+        reset(s3Client);
+        UUID property = newProperty();
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(s3Error("AccessDenied", 403));
+
+        mvc.perform(upload(property, "foto.png", "image/png", PNG))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("STORAGE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.error", containsString("AccessDenied")));
+
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM property_photos WHERE property_id = ?", Integer.class, property));
+    }
+
+    @Test
+    void networkOrCredentialFailureAlsoReturns502NotAGeneric500() throws Exception {
+        reset(s3Client);
+        UUID property = newProperty();
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenThrow(SdkClientException.create("Unable to load credentials"));
+
+        mvc.perform(upload(property, "foto.png", "image/png", PNG))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("STORAGE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.error", containsString("SdkClientException")));
+    }
+
+    @Test
+    void r2FailingOnDeleteReturns502AndKeepsThePhotoInTheList() throws Exception {
+        reset(s3Client);
+        UUID property = newProperty();
+        String name = UUID.randomUUID() + ".png";
+        jdbc.update("INSERT INTO property_photos (property_id, photos) VALUES (?, ?)",
+                property, "http://localhost/fake-r2/" + tenantId + "/properties/" + property + "/" + name);
+        when(s3Client.deleteObject(any(DeleteObjectRequest.class))).thenThrow(s3Error("NoSuchBucket", 404));
+
+        mvc.perform(withToken(token("photos_corretor", tenantId, "CORRETOR"),
+                        delete("/api/v1/properties/" + property + "/photos/" + name)))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("STORAGE_UNAVAILABLE"));
+
+        // a transacao foi revertida: a foto continua listada
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM property_photos WHERE property_id = ?", Integer.class, property));
+    }
+
+    private static S3Exception s3Error(String code, int httpStatus) {
+        return (S3Exception) S3Exception.builder()
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode(code).errorMessage(code).build())
+                .statusCode(httpStatus)
+                .build();
     }
 
     @Test

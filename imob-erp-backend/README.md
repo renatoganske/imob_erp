@@ -276,6 +276,8 @@ POST   /api/v1/properties/{id}/photos
 DELETE /api/v1/properties/{id}/photos/{key}
 ```
 
+**Falha do armazenamento (R2):** se o Cloudflare R2 recusar a operação (credencial sem permissão de escrita, bucket inexistente, rede), o upload/remoção de foto e o upload do PDF do contrato respondem `502 STORAGE_UNAVAILABLE` com o código do erro do S3 na mensagem (ex.: `AccessDenied (HTTP 403)`, `NoSuchBucket (HTTP 404)`), e o backend registra a causa completa no log (`Falha no armazenamento R2: op=… bucket=… key=… causa=…`, sem credenciais). Nada é gravado no banco quando o R2 falha. Para diagnosticar um `502` de upload, procure essa linha no console.
+
 ### CRM — Leads
 ```
 GET    /api/v1/leads
