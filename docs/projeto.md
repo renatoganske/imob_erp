@@ -44,7 +44,7 @@ imob_erp/
    ```powershell
    docker compose up -d
    ```
-   Sobe o Postgres em `localhost:5434` (banco `imobcrm`; as portas 5432 e 5433 costumam ser de outros projetos) e o Mailpit (SMTP `1025`, interface em `http://localhost:8025`).
+   Sobe o Postgres em `localhost:5434` (banco `imobcrm`; as portas 5432 e 5433 costumam ser de outros projetos) e o Mailpit (SMTP `1025`, interface em `http://localhost:8025`). No perfil `dev` o health de e-mail fica desligado (`management.health.mail.enabled=false`), então `/actuator/health` continua `UP` com o Mailpit parado; em produção o indicador segue ligado.
 
 2. **Backend** (porta `8080`). Aponte o `JAVA_HOME` para o JDK 21 e suba:
 

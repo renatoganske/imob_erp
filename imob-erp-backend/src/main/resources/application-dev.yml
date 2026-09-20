@@ -4,6 +4,13 @@ spring:
       ddl-auto: validate
     show-sql: true
 
+management:
+  health:
+    mail:
+      # Com o Mailpit parado o health de e-mail deixava /actuator/health em DOWN, embora a API funcione.
+      # Em producao o indicador continua ligado.
+      enabled: false
+
 logging:
   level:
     com.imobcrm: DEBUG
