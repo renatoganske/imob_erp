@@ -72,6 +72,12 @@ public class PropertyController {
         return propertyService.addPhoto(id, file);
     }
 
+    @PutMapping("/{id}/photos/order")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CORRETOR')")
+    public PropertyResponse reorderPhotos(@PathVariable UUID id, @Valid @RequestBody PhotoOrderRequest request) {
+        return propertyService.reorderPhotos(id, request.keys());
+    }
+
     @DeleteMapping("/{id}/photos/{key}")
     @PreAuthorize("hasAnyRole('ADMIN', 'CORRETOR')")
     public PropertyResponse removePhoto(@PathVariable UUID id, @PathVariable String key) {

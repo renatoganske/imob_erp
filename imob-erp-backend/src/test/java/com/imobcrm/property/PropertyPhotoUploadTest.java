@@ -118,7 +118,7 @@ class PropertyPhotoUploadTest extends IntegrationTestBase {
         reset(s3Client);
         UUID property = newProperty();
         for (int i = 0; i < 20; i++) {
-            jdbc.update("INSERT INTO property_photos (property_id, photos) VALUES (?, ?)", property, "http://x/" + i + ".png");
+            jdbc.update("INSERT INTO property_photos (property_id, photo_order, photos) VALUES (?, ?, ?)", property, i, "http://x/" + i + ".png");
         }
 
         mvc.perform(upload(property, "extra.png", "image/png", PNG))
@@ -161,7 +161,7 @@ class PropertyPhotoUploadTest extends IntegrationTestBase {
         reset(s3Client);
         UUID property = newProperty();
         String name = UUID.randomUUID() + ".png";
-        jdbc.update("INSERT INTO property_photos (property_id, photos) VALUES (?, ?)",
+        jdbc.update("INSERT INTO property_photos (property_id, photo_order, photos) VALUES (?, 0, ?)",
                 property, "http://localhost/fake-r2/" + tenantId + "/properties/" + property + "/" + name);
         when(s3Client.deleteObject(any(DeleteObjectRequest.class))).thenThrow(s3Error("NoSuchBucket", 404));
 
@@ -187,7 +187,7 @@ class PropertyPhotoUploadTest extends IntegrationTestBase {
         // Ja existem fotos: e ai que o "apaga tudo e regrava a lista" de uma transacao destroi a foto da outra
         int existing = 2;
         for (int i = 0; i < existing; i++) {
-            jdbc.update("INSERT INTO property_photos (property_id, photos) VALUES (?, ?)", property, "http://x/existente-" + i + ".png");
+            jdbc.update("INSERT INTO property_photos (property_id, photo_order, photos) VALUES (?, ?, ?)", property, i, "http://x/existente-" + i + ".png");
         }
         int uploads = 6;
         var pool = java.util.concurrent.Executors.newFixedThreadPool(uploads);
@@ -224,7 +224,7 @@ class PropertyPhotoUploadTest extends IntegrationTestBase {
         reset(s3Client);
         UUID property = newProperty();
         String name = UUID.randomUUID() + ".png";
-        jdbc.update("INSERT INTO property_photos (property_id, photos) VALUES (?, ?)",
+        jdbc.update("INSERT INTO property_photos (property_id, photo_order, photos) VALUES (?, 0, ?)",
                 property, "http://localhost/fake-r2/" + tenantId + "/properties/" + property + "/" + name);
 
         mvc.perform(withToken(token("photos_corretor", tenantId, "CORRETOR"),
