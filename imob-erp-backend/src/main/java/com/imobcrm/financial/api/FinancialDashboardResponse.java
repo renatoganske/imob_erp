@@ -6,6 +6,8 @@ public record FinancialDashboardResponse(
         BigDecimal saldoDoMes,
         BigDecimal totalAReceber,
         BigDecimal totalAPagar,
-        BigDecimal inadimplencia
+        BigDecimal inadimplencia,
+        /** Mes consultado, formato YYYY-MM. */
+        String month
 ) {
 }
