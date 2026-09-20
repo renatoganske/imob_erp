@@ -1,6 +1,7 @@
 package com.imobcrm.config;
 
 import com.imobcrm.tenant.TenantContext;
+import com.imobcrm.user.domain.PendingInviteLinker;
 import com.imobcrm.user.domain.User;
 import com.imobcrm.user.domain.UserRepository;
 import com.imobcrm.user.domain.enums.Role;
@@ -24,6 +25,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -38,14 +40,22 @@ public class ClerkJwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final DefaultJWTProcessor<SecurityContext> jwtProcessor;
     private final UserRepository userRepository;
+    private final PendingInviteLinker inviteLinker;
 
-    public ClerkJwtAuthenticationFilter(ClerkProperties clerkProperties, UserRepository userRepository) {
-        this(buildProcessor(clerkProperties), userRepository);
+    public ClerkJwtAuthenticationFilter(ClerkProperties clerkProperties, UserRepository userRepository,
+                                        PendingInviteLinker inviteLinker) {
+        this(buildProcessor(clerkProperties), userRepository, inviteLinker);
     }
 
     ClerkJwtAuthenticationFilter(DefaultJWTProcessor<SecurityContext> jwtProcessor, UserRepository userRepository) {
+        this(jwtProcessor, userRepository, (clerkUserId, tenantId) -> Optional.empty());
+    }
+
+    ClerkJwtAuthenticationFilter(DefaultJWTProcessor<SecurityContext> jwtProcessor, UserRepository userRepository,
+                                 PendingInviteLinker inviteLinker) {
         this.jwtProcessor = jwtProcessor;
         this.userRepository = userRepository;
+        this.inviteLinker = inviteLinker;
     }
 
     private static DefaultJWTProcessor<SecurityContext> buildProcessor(ClerkProperties properties) {
@@ -90,7 +100,9 @@ public class ClerkJwtAuthenticationFilter extends OncePerRequestFilter {
 
             UUID tenantId = UUID.fromString((String) publicMetadata.get("tenantId"));
             Role role = Role.valueOf((String) publicMetadata.get("role"));
+            // Primeiro acesso de quem aceitou um convite: vincula ao registro pendente do tenant do token.
             User user = userRepository.findByClerkUserId(clerkUserId)
+                    .or(() -> inviteLinker.linkPendingInvite(clerkUserId, tenantId))
                     .orElseThrow(() -> new IllegalStateException("Usuario nao cadastrado localmente: " + clerkUserId));
             if (!user.isActive()) {
                 throw new IllegalStateException("Usuario inativo: " + user.getId());

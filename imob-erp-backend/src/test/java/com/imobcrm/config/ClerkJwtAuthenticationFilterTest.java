@@ -111,7 +111,7 @@ class ClerkJwtAuthenticationFilterTest {
     void failsFastWhenIssuerIsNotConfigured() {
         var properties = new ClerkProperties("sk", "http://localhost/jwks", " ", List.of());
 
-        assertThatThrownBy(() -> new ClerkJwtAuthenticationFilter(properties, userRepository))
+        assertThatThrownBy(() -> new ClerkJwtAuthenticationFilter(properties, userRepository, (clerkUserId, tenantId) -> java.util.Optional.empty()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("CLERK_ISSUER");
     }

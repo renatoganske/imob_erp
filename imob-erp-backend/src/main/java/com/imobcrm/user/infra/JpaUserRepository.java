@@ -17,4 +17,11 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     Optional<User> findByIdAndTenantId(UUID id, UUID tenantId);
 
     boolean existsByEmailIgnoreCase(String email);
+
+    List<User> findAllByTenantIdAndActiveFalseAndClerkUserIdStartingWith(UUID tenantId, String prefix);
+
+    @Override
+    default List<User> findPendingInvites(UUID tenantId) {
+        return findAllByTenantIdAndActiveFalseAndClerkUserIdStartingWith(tenantId, "pending:");
+    }
 }

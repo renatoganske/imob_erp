@@ -333,6 +333,13 @@ PATCH  /api/v1/users/{id}/commission-rate
 DELETE /api/v1/users/{id}
 ```
 
+**Convite (`POST /api/v1/users/invite`, só ADMIN):**
+
+- **E-mail sem conta no Clerk:** o backend cria o convite no Clerk (e-mail enviado pelo próprio Clerk) com `tenantId` e `role` no metadata e o link aponta para `<primeira origem de APP_CORS_ORIGIN>/sign-up`. O usuário fica **pendente** (`active=false`, `clerk_user_id = pending:…`) e aparece como "Pendente" na tela de Usuários.
+- **Aceite:** no primeiro acesso do convidado, se não há usuário local para o `clerk_user_id`, o filtro procura um convite pendente **do tenant do token** cujo e-mail esteja **verificado** na conta do Clerk; então grava o `clerk_user_id` real e ativa o usuário. E-mail não verificado, e-mail diferente ou tenant diferente seguem sem acesso.
+- **E-mail que já tem conta no Clerk:** é vinculado na hora (metadata gravado; a pessoa só precisa sair e entrar de novo). Se o metadata dela já aponta para outra imobiliária, retorna `409`.
+- **Erros:** `409 EMAIL_IN_USE` (e-mail já vinculado) · `409 INVITE_REJECTED` (Clerk recusou o convite) · `502 CLERK_UNAVAILABLE` (Clerk fora do ar; o registro local é desfeito, basta repetir).
+
 ---
 
 ## Migrations
