@@ -17,6 +17,12 @@ public interface PropertyRepository {
 
     boolean existsByIdAndTenantIdAndActiveTrue(UUID id, UUID tenantId);
 
+    /**
+     * Busca o imovel ativo do tenant travando a linha ate o fim da transacao (SELECT ... FOR UPDATE).
+     * Serializa escritas concorrentes sobre a lista de fotos, que o Hibernate regrava por inteiro.
+     */
+    Optional<Property> lockByIdAndTenantIdAndActiveTrue(UUID id, UUID tenantId);
+
     Page<Property> search(
             UUID tenantId,
             PropertyType type,
