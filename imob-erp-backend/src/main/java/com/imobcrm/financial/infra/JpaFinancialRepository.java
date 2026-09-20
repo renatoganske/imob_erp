@@ -8,6 +8,7 @@ import com.imobcrm.financial.domain.enums.EntryType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -40,7 +41,19 @@ public interface JpaFinancialRepository extends JpaRepository<FinancialEntry, UU
 
     List<FinancialEntry> findAllByTenantIdAndStatusAndDueDateBefore(UUID tenantId, EntryStatus status, LocalDate date);
 
-    List<FinancialEntry> findAllByStatusAndDueDateBefore(EntryStatus status, LocalDate date);
+    @Query("SELECT DISTINCT f.tenantId FROM FinancialEntry f WHERE f.status = :status AND f.dueDate < :date")
+    List<UUID> findTenantIdsByStatusAndDueDateBefore(@Param("status") EntryStatus status, @Param("date") LocalDate date);
+
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            UPDATE FinancialEntry f SET f.status = :to
+            WHERE f.tenantId = :tenantId AND f.status = :from AND f.dueDate < :date
+            """)
+    int updateStatusByTenantAndDueDateBefore(
+            @Param("tenantId") UUID tenantId,
+            @Param("from") EntryStatus from,
+            @Param("to") EntryStatus to,
+            @Param("date") LocalDate date);
 
     @Query("""
             SELECT COALESCE(SUM(f.value), 0) FROM FinancialEntry f

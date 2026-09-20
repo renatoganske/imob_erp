@@ -30,7 +30,11 @@ public interface FinancialRepository {
 
     List<FinancialEntry> findAllByTenantIdAndStatusAndDueDateBefore(UUID tenantId, EntryStatus status, LocalDate date);
 
-    List<FinancialEntry> findAllByStatusAndDueDateBefore(EntryStatus status, LocalDate date);
+    /** Tenants que possuem lancamentos com o status informado e vencimento anterior a data. */
+    List<UUID> findTenantIdsByStatusAndDueDateBefore(EntryStatus status, LocalDate date);
+
+    /** Troca o status dos lancamentos do tenant (from, vencimento anterior a data) para to; devolve quantos mudaram. */
+    int updateStatusByTenantAndDueDateBefore(UUID tenantId, EntryStatus from, EntryStatus to, LocalDate date);
 
     /** Soma dos lancamentos com vencimento ate a data (inclusive), sem limite inferior. */
     java.math.BigDecimal sumByTypeAndStatusDueUntil(UUID tenantId, EntryType type, EntryStatus status, LocalDate to);

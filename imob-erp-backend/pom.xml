@@ -25,6 +25,7 @@
         <nimbus-jose-jwt.version>9.40</nimbus-jose-jwt.version>
         <aws-sdk.version>2.28.9</aws-sdk.version>
         <springdoc.version>2.6.0</springdoc.version>
+        <shedlock.version>5.16.0</shedlock.version>
     </properties>
 
     <dependencies>
@@ -99,6 +100,18 @@
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
             <version>${mapstruct.version}</version>
+        </dependency>
+
+        <!-- Lock distribuido dos jobs agendados -->
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-spring</artifactId>
+            <version>${shedlock.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-provider-jdbc-template</artifactId>
+            <version>${shedlock.version}</version>
         </dependency>
 
         <!-- Testes -->
