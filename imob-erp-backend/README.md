@@ -131,6 +131,16 @@ R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET_NAME=imobcrm-dev
 R2_PUBLIC_URL=https://pub-xxx.r2.dev
+
+# E-mail (SMTP). Em dev, o padrao aponta para o Mailpit (docker compose up -d mailpit; UI em http://localhost:8025)
+MAIL_HOST=localhost
+MAIL_PORT=1025
+MAIL_FROM=no-reply@imob-erp.local
+# Em producao (ex.: Resend: smtp.resend.com:587, usuario "resend", senha = API key)
+# MAIL_USERNAME=
+# MAIL_PASSWORD=
+# MAIL_SMTP_AUTH=true
+# MAIL_STARTTLS=true
 ```
 
 > **Como obter as credenciais do Clerk:**
@@ -168,6 +178,13 @@ Health check: `http://localhost:8080/actuator/health`
 | `R2_SECRET_ACCESS_KEY` | Secret Key do R2 | ✅ |
 | `R2_BUCKET_NAME` | Nome do bucket R2 | ✅ |
 | `R2_PUBLIC_URL` | URL pública do bucket R2 | ✅ |
+| `MAIL_HOST` | Servidor SMTP (padrão: `localhost`, o Mailpit do `docker-compose`) | ❌ (✅ em produção) |
+| `MAIL_PORT` | Porta SMTP (padrão: `1025`) | ❌ (✅ em produção) |
+| `MAIL_USERNAME` | Usuário SMTP | ❌ (✅ em produção) |
+| `MAIL_PASSWORD` | Senha ou API key do SMTP | ❌ (✅ em produção) |
+| `MAIL_SMTP_AUTH` | `true` para autenticar no SMTP (padrão: `false`) | ❌ |
+| `MAIL_STARTTLS` | `true` para usar STARTTLS (padrão: `false`) | ❌ |
+| `MAIL_FROM` | Remetente dos e-mails (padrão: `no-reply@imob-erp.local`); em produção use um endereço do domínio com SPF/DKIM/DMARC | ❌ (✅ em produção) |
 
 ---
 

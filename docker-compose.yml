@@ -17,5 +17,14 @@ services:
       timeout: 5s
       retries: 5
 
+  # SMTP de desenvolvimento: recebe os e-mails sem entrega real. UI em http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: imob-erp-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   imob_erp_postgres_data:
