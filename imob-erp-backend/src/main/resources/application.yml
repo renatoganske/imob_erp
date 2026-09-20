@@ -54,6 +54,8 @@ r2:
   public-url: ${R2_PUBLIC_URL}
 
 app:
+  operator:
+    api-key: ${OPERATOR_API_KEY:}
   cors:
     allowed-origins: ${APP_CORS_ORIGIN:http://localhost:3000}
 
