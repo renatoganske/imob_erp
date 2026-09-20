@@ -35,6 +35,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        // Autenticado pela chave de operador dentro do controller, nao por JWT.
+                        .requestMatchers("/internal/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(new ClerkJwtAuthenticationFilter(clerkProperties, userRepository), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new RequestLoggingFilter(), ClerkJwtAuthenticationFilter.class);

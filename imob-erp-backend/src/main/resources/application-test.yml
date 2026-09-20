@@ -21,3 +21,7 @@ r2:
   secret-access-key: fake
   bucket-name: fake
   public-url: http://localhost/fake-r2
+
+app:
+  operator:
+    api-key: test-operator-key

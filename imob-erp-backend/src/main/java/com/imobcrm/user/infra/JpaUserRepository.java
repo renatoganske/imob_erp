@@ -15,4 +15,6 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     List<User> findAllByTenantId(UUID tenantId);
 
     Optional<User> findByIdAndTenantId(UUID id, UUID tenantId);
+
+    boolean existsByEmailIgnoreCase(String email);
 }

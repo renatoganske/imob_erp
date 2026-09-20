@@ -173,6 +173,7 @@ Health check: `http://localhost:8080/actuator/health`
 | `CLERK_JWKS_URL` | URL do JWKS para validação de JWT | ✅ |
 | `CLERK_ISSUER` | Issuer esperado no claim `iss` do JWT (Frontend API URL do Clerk, sem barra final) | ✅ |
 | `CLERK_AUTHORIZED_PARTIES` | Origens aceitas no claim `azp`, separadas por vírgula (padrão: `APP_CORS_ORIGIN`) | ❌ |
+| `OPERATOR_API_KEY` | Chave do operador do produto para criar imobiliárias (`POST /internal/v1/tenants`). Vazia = endpoint desligado | ❌ |
 | `R2_ACCOUNT_ID` | ID da conta Cloudflare | ✅ |
 | `R2_ACCESS_KEY_ID` | Access Key do R2 | ✅ |
 | `R2_SECRET_ACCESS_KEY` | Secret Key do R2 | ✅ |
@@ -226,6 +227,26 @@ O `ClerkJwtAuthenticationFilter` valida o token a cada requisição:
 > O usuário precisa existir na tabela `users` (previsto: webhook `user.created` do Clerk, ainda não implementado — por ora crie a linha manualmente ou via convite).
 
 O `TenantInterceptor` popula o `TenantContext` e o MDC de logs; o `RequestLoggingFilter` limpa ambos ao fim da requisição.
+
+---
+
+## Criar uma imobiliária (onboarding assistido)
+
+Enquanto o cadastro aberto não existe (IMOB-26), quem opera o produto cria a imobiliária de cada cliente, sem SQL manual:
+
+1. O cliente se cadastra no Clerk (a tela de login do app) e **verifica o e-mail**.
+2. Defina `OPERATOR_API_KEY` no backend (uma chave longa e aleatória; sem ela o endpoint fica desligado) e chame:
+
+```bash
+curl -X POST http://localhost:8080/internal/v1/tenants   -H "X-Operator-Key: $OPERATOR_API_KEY" -H "Content-Type: application/json"   -d '{"tenantName": "Imobiliária Exemplo", "adminEmail": "dono@exemplo.com"}'
+```
+
+3. O backend cria o tenant (plano `STARTER`) e o usuário `ADMIN` com o `clerk_user_id` real e grava `tenantId` e `role` no `publicMetadata` do Clerk. Retorna `201` (criado) ou `200` (já existia).
+4. O cliente precisa **sair e entrar de novo** para receber um token com o metadata novo.
+
+- **Idempotente:** repetir a chamada não duplica nada e re-sincroniza o metadata; se o Clerk falhar (`502`), basta repetir.
+- **Erros:** `403` chave inválida · `422 CLERK_USER_NOT_FOUND` (sem conta verificada no Clerk) · `409 EMAIL_IN_USE` / `TENANT_SLUG_TAKEN`.
+- O vínculo só usa e-mail **verificado** no Clerk, para ninguém assumir o e-mail de outra pessoa.
 
 ---
 
