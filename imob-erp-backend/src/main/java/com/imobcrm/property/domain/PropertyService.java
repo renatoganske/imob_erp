@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 @Slf4j
 @Service
@@ -104,36 +105,54 @@ public class PropertyService {
         log.info("Imovel {} desativado (soft delete)", id);
     }
 
+    /**
+     * A linha do imovel fica travada durante toda a operacao: o Hibernate regrava a lista de fotos por inteiro,
+     * entao uploads simultaneos (o front envia varias fotos em paralelo) se sobrescreveriam e duplicariam fotos.
+     */
     @Transactional
     public PropertyResponse addPhoto(UUID id, MultipartFile file) {
-        Property property = findOwned(id);
+        Property property = findOwnedForUpdate(id);
         FileKind kind = uploadValidator.validate(file, UploadValidator.IMAGES);
-        if (property.getPhotos().size() >= MAX_PHOTOS) {
-            throw new BusinessException("Maximo de " + MAX_PHOTOS + " fotos por imovel", "MAX_PHOTOS_EXCEEDED");
-        }
-        String key = TenantContext.tenantId() + "/properties/" + property.getId();
-        String url = storageService.upload(key, file, kind);
-        property.getPhotos().add(url);
+        requireRoomForAnotherPhoto(property);
+        property.getPhotos().add(storageService.upload(photoKeyPrefix(property), file, kind));
         return propertyMapper.toResponseDTO(propertyRepository.save(property));
     }
 
     @Transactional
     public PropertyResponse removePhoto(UUID id, String photoKey) {
-        Property property = findOwned(id);
-        // photoKey e apenas o nome do arquivo (ultimo segmento); a chave completa no R2
-        // segue o mesmo prefixo usado no upload, entao e reconstruida aqui em vez de
-        // confiar em um valor de chave completo vindo do cliente.
-        String fullKey = TenantContext.tenantId() + "/properties/" + property.getId() + "/" + photoKey;
-        boolean removed = property.getPhotos().removeIf(url -> url.endsWith("/" + photoKey));
-        if (!removed) {
-            throw new ResourceNotFoundException("Foto", photoKey);
-        }
-        storageService.delete(fullKey);
+        Property property = findOwnedForUpdate(id);
+        // photoKey e apenas o nome do arquivo (ultimo segmento); a chave completa no R2 e reconstruida
+        // com o mesmo prefixo do upload em vez de confiar em uma chave completa vinda do cliente.
+        String photoUrl = property.getPhotos().stream()
+                .filter(endsWithSegment(photoKey))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Foto", photoKey));
+        property.getPhotos().remove(photoUrl);
+        storageService.delete(photoKeyPrefix(property) + "/" + photoKey);
         return propertyMapper.toResponseDTO(propertyRepository.save(property));
+    }
+
+    private static void requireRoomForAnotherPhoto(Property property) {
+        if (property.getPhotos().size() >= MAX_PHOTOS) {
+            throw new BusinessException("Maximo de " + MAX_PHOTOS + " fotos por imovel", "MAX_PHOTOS_EXCEEDED");
+        }
+    }
+
+    private static Predicate<String> endsWithSegment(String segment) {
+        return url -> url.endsWith("/" + segment);
+    }
+
+    private static String photoKeyPrefix(Property property) {
+        return TenantContext.tenantId() + "/properties/" + property.getId();
     }
 
     private Property findOwned(UUID id) {
         return propertyRepository.findByIdAndTenantIdAndActiveTrue(id, TenantContext.tenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Imovel", id));
+    }
+
+    private Property findOwnedForUpdate(UUID id) {
+        return propertyRepository.lockByIdAndTenantIdAndActiveTrue(id, TenantContext.tenantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Imovel", id));
     }
 }

@@ -174,6 +174,44 @@ class PropertyPhotoUploadTest extends IntegrationTestBase {
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM property_photos WHERE property_id = ?", Integer.class, property));
     }
 
+    /** IMOB-44: o front envia varias fotos em paralelo; nenhuma pode se perder por read-modify-write concorrente. */
+    @Test
+    void concurrentUploadsToTheSamePropertyKeepEveryPhoto() throws Exception {
+        reset(s3Client);
+        // R2 lento: alarga a janela em que duas requisicoes leem a mesma lista de fotos
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenAnswer(invocation -> {
+            Thread.sleep(150);
+            return null;
+        });
+        UUID property = newProperty();
+        // Ja existem fotos: e ai que o "apaga tudo e regrava a lista" de uma transacao destroi a foto da outra
+        int existing = 2;
+        for (int i = 0; i < existing; i++) {
+            jdbc.update("INSERT INTO property_photos (property_id, photos) VALUES (?, ?)", property, "http://x/existente-" + i + ".png");
+        }
+        int uploads = 6;
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(uploads);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+            for (int i = 0; i < uploads; i++) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    return mvc.perform(upload(property, "foto.png", "image/png", PNG)).andReturn().getResponse().getStatus();
+                }));
+            }
+            start.countDown();
+            for (var future : futures) {
+                assertEquals(200, future.get(30, java.util.concurrent.TimeUnit.SECONDS));
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertEquals(existing + uploads, jdbc.queryForObject("SELECT count(*) FROM property_photos WHERE property_id = ?", Integer.class, property));
+        assertEquals(existing + uploads, jdbc.queryForObject("SELECT count(DISTINCT photos) FROM property_photos WHERE property_id = ?", Integer.class, property));
+    }
+
     private static S3Exception s3Error(String code, int httpStatus) {
         return (S3Exception) S3Exception.builder()
                 .awsErrorDetails(AwsErrorDetails.builder().errorCode(code).errorMessage(code).build())
