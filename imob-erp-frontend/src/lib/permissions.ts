@@ -18,6 +18,11 @@ export function canReadContracts(role: Role | undefined): boolean {
   return canManageContracts(role) || role === "CORRETOR";
 }
 
+// Espelha o @PreAuthorize das fotos do PropertyController (POST/DELETE): Admin e Corretor.
+export function canManagePhotos(role: Role | undefined): boolean {
+  return role === "ADMIN" || role === "CORRETOR";
+}
+
 const CONTRACTS_PATH = /^\/contratos(\/|$)/;
 const CONTRACT_CREATE_PATH = /^\/contratos\/novo(\/|$)/;
 

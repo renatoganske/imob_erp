@@ -1,8 +1,10 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
+import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export const MAX_PHOTOS = 20;
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
@@ -53,6 +55,9 @@ export function planUpload(files: File[], alreadyStored: number): Plan {
   };
 }
 
+/** Chave aceita pelo DELETE: último segmento do caminho da URL da foto, sem query string. */
+export const photoKey = (url: string): string => url.split("?")[0].split("/").filter(Boolean).at(-1) ?? "";
+
 const chunk = <T,>(items: T[], size: number): T[][] =>
   Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
 
@@ -73,15 +78,20 @@ export function PhotoUpload({
   propertyId,
   photos,
   onUploaded,
+  canDelete = false,
 }: {
   propertyId: string;
   photos: string[];
   onUploaded: () => void;
+  canDelete?: boolean;
 }) {
   const { getToken } = useAuth();
   const [busy, setBusy] = useState(false);
   const [items, setItems] = useState<UploadItem[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const setStatus = (id: number, patch: Partial<UploadItem>) => setItems((current) => withStatus(current, id, patch));
 
@@ -104,6 +114,29 @@ export function PhotoUpload({
     } catch (err) {
       setStatus(id, { status: "error", error: err instanceof Error ? err.message : "Falha ao enviar foto" });
       return false;
+    }
+  }
+
+  async function confirmDelete(url: string) {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const token = await getToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/properties/${propertyId}/photos/${encodeURIComponent(photoKey(url))}`,
+        { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : undefined },
+      );
+      if (!response.ok) {
+        const problem = await response.json().catch(() => null);
+        throw new Error(problem?.error ?? "Falha ao excluir foto");
+      }
+      setPendingDelete(null);
+      onUploaded();
+    } catch (err) {
+      setPendingDelete(null);
+      setDeleteError(err instanceof Error ? err.message : "Falha ao excluir foto");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -130,10 +163,40 @@ export function PhotoUpload({
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-        {photos.map((url) => (
-          <img key={url} src={url} alt="Foto do imóvel" className="aspect-square w-full rounded-md object-cover" />
+        {photos.map((url, index) => (
+          <div key={url} className="relative">
+            <img src={url} alt="Foto do imóvel" className="aspect-square w-full rounded-md object-cover" />
+            {canDelete && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label={`Excluir foto ${index + 1}`}
+                className="absolute right-1 top-1 h-8 w-8 bg-background/90"
+                onClick={() => setPendingDelete(url)}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+              </Button>
+            )}
+          </div>
         ))}
       </div>
+
+      {deleteError && (
+        <p role="alert" className="text-sm text-danger">
+          {deleteError}
+        </p>
+      )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Excluir foto"
+        description="A foto será removida do imóvel e apagada definitivamente. Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        loading={deleting}
+        onConfirm={() => pendingDelete && confirmDelete(pendingDelete)}
+        onCancel={() => setPendingDelete(null)}
+      />
 
       {photos.length < MAX_PHOTOS && (
         <label>

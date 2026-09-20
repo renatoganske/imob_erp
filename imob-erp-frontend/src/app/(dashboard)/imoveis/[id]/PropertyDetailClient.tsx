@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PhotoUpload } from "@/components/imoveis/PhotoUpload";
+import { useRole } from "@/hooks/useRole";
+import { canManagePhotos } from "@/lib/permissions";
 import { Skeleton } from "@/components/ui/state";
 import { api } from "@/lib/api";
 import { PROPERTY_PURPOSE_LABEL, PROPERTY_STATUS_LABEL, PROPERTY_TYPE_LABEL } from "@/lib/labels";
@@ -38,6 +40,7 @@ function Feature({ icon: Icon, label, value }: { icon: LucideIcon; label: string
 
 export function PropertyDetailClient({ id }: { id: string }) {
   const { getToken } = useAuth();
+  const role = useRole();
   const [property, setProperty] = useState<Property | null>(null);
   const [error, setError] = useState(false);
 
@@ -117,7 +120,12 @@ export function PropertyDetailClient({ id }: { id: string }) {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-muted-foreground">Fotos</h2>
-        <PhotoUpload propertyId={property.id} photos={property.photos} onUploaded={load} />
+        <PhotoUpload
+          propertyId={property.id}
+          photos={property.photos}
+          onUploaded={load}
+          canDelete={canManagePhotos(role)}
+        />
       </section>
     </div>
   );

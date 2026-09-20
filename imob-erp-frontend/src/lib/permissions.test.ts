@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAccessPath, canManageContracts, canReadContracts, parseRole } from "./permissions";
+import { canAccessPath, canManageContracts, canManagePhotos, canReadContracts, parseRole } from "./permissions";
 
 describe("parseRole", () => {
   it("aceita os papéis conhecidos e descarta o resto", () => {
@@ -53,5 +53,14 @@ describe("canAccessPath", () => {
     expect(canAccessPath("CORRETOR", "/leads")).toBe(true);
     expect(canAccessPath("CORRETOR", "/contratosx")).toBe(true);
     expect(canAccessPath(undefined, "/")).toBe(true);
+  });
+});
+
+describe("canManagePhotos", () => {
+  it("ADMIN e CORRETOR gerenciam fotos; FINANCEIRO e papel ausente não", () => {
+    expect(canManagePhotos("ADMIN")).toBe(true);
+    expect(canManagePhotos("CORRETOR")).toBe(true);
+    expect(canManagePhotos("FINANCEIRO")).toBe(false);
+    expect(canManagePhotos(undefined)).toBe(false);
   });
 });
