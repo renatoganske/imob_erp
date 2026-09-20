@@ -6,9 +6,11 @@ import { FinancialDashboard } from "@/components/financeiro/FinancialDashboard";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/state";
+import { ExpiringContractsAlerts } from "@/components/contratos/ExpiringContractsAlerts";
+import { useExpiringContractsSummary } from "@/hooks/useContracts";
 import { useFinancialDashboard } from "@/hooks/useFinancial";
 import { useRole } from "@/hooks/useRole";
-import { canAccessPath } from "@/lib/permissions";
+import { canAccessPath, canManageContracts } from "@/lib/permissions";
 
 const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
   { href: "/leads", label: "Novo lead", hint: "Registrar um contato", icon: Users },
@@ -20,6 +22,7 @@ const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }
 export default function DashboardHomePage() {
   const { data, loading } = useFinancialDashboard();
   const role = useRole();
+  const { data: expiring } = useExpiringContractsSummary(canManageContracts(role));
 
   return (
     <div className="flex flex-col gap-8">
@@ -52,6 +55,13 @@ export default function DashboardHomePage() {
         )}
         {data && <FinancialDashboard data={data} />}
       </section>
+
+      {expiring && (
+        <section aria-label="Contratos vencendo" className="flex flex-col gap-3">
+          <h2 className="text-sm font-medium text-muted-foreground">Locações vencendo</h2>
+          <ExpiringContractsAlerts summary={expiring} />
+        </section>
+      )}
     </div>
   );
 }

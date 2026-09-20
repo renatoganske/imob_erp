@@ -24,7 +24,14 @@ export interface Contract {
   notes?: string;
 }
 
-export type ContractRequest = Omit<Contract, "id" | "status" | "documentUrl" | "buyerDocument" | "ownerDocument"> & {
+// Contagem acumulada de locações ativas que vencem em até 30/60/90 dias (IMOB-28).
+export interface ExpiringSummary {
+  within30Days: number;
+  within60Days: number;
+  within90Days: number;
+}
+
+export type ContractRequest =Omit<Contract, "id" | "status" | "documentUrl" | "buyerDocument" | "ownerDocument"> & {
   buyerDocument: string;
   ownerDocument: string;
 };

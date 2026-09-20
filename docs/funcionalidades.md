@@ -24,7 +24,7 @@ Papéis: `ADMIN`, `CORRETOR`, `FINANCEIRO` (`user/domain/enums/Role.java`). O pa
 | Imóveis | ADMIN, CORRETOR | ADMIN, CORRETOR (excluir: só ADMIN) |
 | Leads | ADMIN, CORRETOR, FINANCEIRO | ADMIN, CORRETOR (reatribuir: só ADMIN) |
 | Visitas | ADMIN, CORRETOR | ADMIN, CORRETOR |
-| Contratos | ADMIN, FINANCEIRO; CORRETOR só os próprios, sem dados sensíveis | ADMIN, FINANCEIRO |
+| Contratos | ADMIN, FINANCEIRO; CORRETOR só os próprios, sem dados sensíveis (resumo de vencimentos: só ADMIN e FINANCEIRO) | ADMIN, FINANCEIRO |
 | Financeiro | ADMIN, FINANCEIRO | ADMIN, FINANCEIRO |
 | Comissões | ADMIN, CORRETOR, FINANCEIRO | pagar e relatório: ADMIN, FINANCEIRO |
 | Usuários | ADMIN | ADMIN |
@@ -132,7 +132,7 @@ Status: `AGENDADA`, `REALIZADA`, `CANCELADA`. Lead, imóvel e corretor do corpo 
 
 ## 4. Contratos
 
-Rotas `/api/v1/contracts`: `GET /` e `GET /{id}` (ADMIN, FINANCEIRO, CORRETOR); `POST /`, `PUT /{id}`, `PATCH /{id}/status` e `POST /{id}/document` (ADMIN, FINANCEIRO).
+Rotas `/api/v1/contracts`: `GET /` (filtros `status`, `type` e `expiringInDays`) e `GET /{id}` (ADMIN, FINANCEIRO, CORRETOR); `GET /expiring-summary` (ADMIN, FINANCEIRO); `POST /`, `PUT /{id}`, `PATCH /{id}/status` e `POST /{id}/document` (ADMIN, FINANCEIRO).
 
 **Modelo:** tipo (`COMPRA_VENDA`, `LOCACAO`), status (`RASCUNHO`, `ATIVO`, `ENCERRADO`, `CANCELADO`), lead (opcional), imóvel, corretor, valor, datas (assinatura, início, fim), índice de reajuste (`IGPM`, `IPCA`, `FIXO`), comprador e proprietário (nome e documento), override de comissão, observações e URL do PDF.
 
@@ -144,10 +144,14 @@ Rotas `/api/v1/contracts`: `GET /` e `GET /{id}` (ADMIN, FINANCEIRO, CORRETOR); 
   - gera 12 parcelas de aluguel ou 1 lançamento de venda;
   - gera a comissão do corretor.
 - Voltar para rascunho é proibido (`INVALID_STATUS_TRANSITION`).
+- **Alertas de vencimento (IMOB-28):** só contratos de **locação** `ATIVO` com `endDate` definido, cujo fim cai entre hoje (fuso de Brasília) e hoje + N dias, ambos inclusivos. Contratos que já passaram do fim e continuam `ATIVO` **não** entram.
+  - `GET /?expiringInDays=N` aceita de 1 a 365 (`INVALID_EXPIRY_WINDOW`, 422, fora disso), ordena pelo vencimento mais próximo e recusa combinar com outro `status` ou `type` (`INVALID_EXPIRY_FILTER`, 422). O escopo do corretor continua valendo.
+  - `GET /expiring-summary` devolve a contagem **acumulada** em até 30, 60 e 90 dias (`within30Days`, `within60Days`, `within90Days`): um contrato que vence em 20 dias conta nos três, e cada número é igual ao total do filtro correspondente.
+  - Níveis na tela: até 30 dias vermelho, até 60 amarelo, até 90 informativo.
 - **Corretor** lê só os contratos em que é o agente (404 nos demais), sem CPF/CNPJ e sem o PDF, e não escreve.
 - PDF: um por contrato, só PDF de até 10 MB, validado por magic bytes. O anterior é apagado do R2 após o commit; se a transação reverte, apaga o novo.
 
-**Telas:** `/contratos` (lista com filtros de status, tipo e período), `/contratos/novo` (bloqueada para corretor) e `/contratos/[id]` (detalhe, "Ativar contrato" com diálogo de resumo, upload de PDF e link "Ver parcelas em Financeiro"). Máscaras de R$ e CPF/CNPJ, este com validação dos dígitos.
+**Telas:** `/contratos` (lista com filtros de status, tipo e período; para ADMIN e FINANCEIRO, três cartões com a contagem de locações vencendo em 30/60/90 dias que abrem `/contratos?expiringInDays=N`, e um selo "Vence em N dias" nas linhas dentro de 90 dias), o "Resumo" (página inicial) com a seção "Locações vencendo" para os mesmos papéis, `/contratos/novo` (bloqueada para corretor) e `/contratos/[id]` (detalhe, "Ativar contrato" com diálogo de resumo, upload de PDF e link "Ver parcelas em Financeiro"). Máscaras de R$ e CPF/CNPJ, este com validação dos dígitos.
 
 | Item | Status |
 |---|---|
@@ -156,12 +160,13 @@ Rotas `/api/v1/contracts`: `GET /` e `GET /{id}` (ADMIN, FINANCEIRO, CORRETOR); 
 | Fluxo criar → ativar → ver parcelas na tela | 👁️ IMOB-29 |
 | Encerrar/cancelar | 🟡 IMOB-33: parcial no efeito. A API muda o status, mas não reverte o status do imóvel nem cancela as parcelas futuras; também não há tela |
 | Cálculo de reajuste | 🟡 `adjustmentIndex` é só um campo |
-| Alertas de vencimento | ⬜ IMOB-28 |
+| Alertas de vencimento 30/60/90 dias (filtro, resumo, cartões e selos) | ✅ (backend) · 👁️ (telas) IMOB-28 |
 
 **Limitações conhecidas**
+- Os alertas de vencimento aparecem só na tela: **não há e-mail nem notificação**, e locação `ATIVA` cujo fim já passou não gera alerta (nem é encerrada automaticamente). A "hoje" da tela é a data do navegador; a do backend é a de Brasília.
 - Encerrar ou cancelar muda o status, mas **não reverte o imóvel nem as parcelas futuras**, e não há tela para isso. As transições a partir de `RASCUNHO` e `ATIVO` para `ENCERRADO`/`CANCELADO` não são restringidas.
 
-**Testes:** `ContractServiceTest`, `ContractCorretorAccessTest`, `ContractDocumentUploadTest`; no frontend, `ContractDetailClient.test.tsx`, `ActivateContractDialog.test.tsx`, `ContractDocumentUpload.test.tsx`, `ContractFilters.test.tsx`, `lib/contracts.test.ts`.
+**Testes:** `ContractServiceTest`, `ContractCorretorAccessTest`, `ContractDocumentUploadTest`, `ContractExpiryAlertsTest`, `ExpiryWindowTest`; no frontend, `ContractDetailClient.test.tsx`, `ActivateContractDialog.test.tsx`, `ContractDocumentUpload.test.tsx`, `ContractFilters.test.tsx`, `ExpiringContractsAlerts.test.tsx`, `lib/contracts.test.ts`, `lib/expiry.test.ts`.
 
 ---
 
@@ -273,7 +278,8 @@ Recebe `{ "tenantName", "adminEmail" }` (corpo JSON e exemplo de `curl` em [`pro
 |---|---|
 | Outbox, dispatcher, retry | ✅ |
 | Gatilhos que usem a outbox | 🟡 **nada enfileira e-mail hoje**; o convite usa o Clerk |
-| Alertas de vencimento de contrato (30/60/90 dias) e de parcelas | ⬜ IMOB-28 |
+| Alertas de vencimento de contrato (30/60/90 dias) | ✅ (backend) · 👁️ (telas), **só na tela, sem e-mail** (IMOB-28); ver [Contratos](#4-contratos) |
+| Alertas de parcelas a vencer | ⬜ |
 | Serviço de notificações separado com RabbitMQ | ⬜ desenhado, não iniciado |
 
 **Testes:** `EmailOutboxTest`.
@@ -300,7 +306,7 @@ Recebe `{ "tenantName", "adminEmail" }` (corpo JSON e exemplo de `curl` em [`pro
 
 - Autenticação e proteção de rotas em `middleware.ts` (Clerk); `/sign-in` e `/sign-up`.
 - `lib/permissions.ts` espelha o backend (`canManageContracts`, `canReadContracts`, `canManagePhotos`, `canAccessPath`). O menu e os atalhos são filtrados por papel, hoje só para as rotas de contratos.
-- Layout: sidebar, cabeçalho, navegação móvel, tema claro/escuro, página inicial "Resumo" com atalhos.
+- Layout: sidebar, cabeçalho, navegação móvel, tema claro/escuro, página inicial "Resumo" com atalhos, financeiro do mês e, para ADMIN e FINANCEIRO, locações vencendo em 30/60/90 dias.
 - Componentes próprios em `components/ui` (botão, card, diálogo, confirmação, selects, estados vazio/erro/carregando, badges).
 - **Máscaras** (IMOB-45), em `lib/masks.ts` e `components/ui/masked-input.tsx`: R$ (imóvel, contrato, lançamentos), CPF/CNPJ com validação de dígitos e telefone.
 - Cliente HTTP `lib/api.ts` (token do Clerk, erro tipado `{error, code}`) e hooks por módulo em `hooks/`.
@@ -314,8 +320,8 @@ Recebe `{ "tenantName", "adminEmail" }` (corpo JSON e exemplo de `curl` em [`pro
 
 ## 12. Testes e CI
 
-- **Backend:** 26 classes `*Test` (Testcontainers e Flyway via `IntegrationTestBase`, JWKS local, `@MockBean S3Client`); 168 testes passando no PR #25.
-- **Frontend:** 12 arquivos Vitest; 77 testes no PR #24. Cobrem contratos, fotos, permissões, máscaras, navegação e leads. **Não há testes** de financeiro, comissões, visitas, usuários nem da lista e do formulário de imóveis.
+- **Backend:** 28 classes `*Test` (Testcontainers e Flyway via `IntegrationTestBase`, JWKS local, `@MockBean S3Client`); 186 testes passando no PR do IMOB-28.
+- **Frontend:** 14 arquivos Vitest; 93 testes no PR do IMOB-28. Cobrem contratos, fotos, permissões, máscaras, navegação e leads. **Não há testes** de financeiro, comissões, visitas, usuários nem da lista e do formulário de imóveis.
 - **CI:** `.github/workflows/backend-ci.yml` (Java 21, Postgres, `mvn test` com relatório) em push e PR para `main` e `develop`.
 - **O frontend não tem CI ativo:** o workflow em `imob-erp-frontend/.github/workflows/ci.yml` é ignorado, porque o GitHub só lê `.github/workflows` da raiz. Lint, build e Vitest do frontend não rodam nos PRs.
 - Sem testes end-to-end.
@@ -330,7 +336,6 @@ O que ainda **não** existe (cards do Jira, projeto IMOB):
 |---|---|
 | IMOB-24 | Visitas: filtros e regra de imóvel vendido |
 | IMOB-26 | Onboarding self-serve e webhook do Clerk |
-| IMOB-28 | Alertas de vencimento de contratos |
 | IMOB-33 | Encerrar/cancelar contrato revertendo imóvel e parcelas |
 | IMOB-34 | Kanban de leads com drag and drop, confirmação e toast |
 | IMOB-46 | Campos específicos por tipo de imóvel |

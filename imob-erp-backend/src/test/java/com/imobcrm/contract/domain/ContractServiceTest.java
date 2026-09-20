@@ -1,6 +1,12 @@
 package com.imobcrm.contract.domain;
 
 import com.imobcrm.contract.api.ContractResponse;
+import com.imobcrm.contract.api.ExpiringContractsSummary;
+import org.mockito.Spy;
+import org.springframework.data.domain.Sort;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -55,6 +61,7 @@ class ContractServiceTest {
     @Mock private CommissionService commissionService;
     @Mock private R2StorageService storageService;
     @Mock private UploadValidator uploadValidator;
+    @Spy private Clock clock = Clock.fixed(Instant.parse("2026-09-20T15:00:00Z"), ZoneId.of("America/Sao_Paulo"));
 
     @InjectMocks private ContractService contractService;
 
@@ -210,10 +217,10 @@ class ContractServiceTest {
         loginAs(Role.CORRETOR, corretorId);
         Contract own = contractOf(corretorId);
         Pageable pageable = PageRequest.of(0, 20);
-        when(contractRepository.search(tenantId, corretorId, null, null, pageable)).thenReturn(new PageImpl<>(List.of(own)));
+        when(contractRepository.search(tenantId, corretorId, null, null, null, null, pageable)).thenReturn(new PageImpl<>(List.of(own)));
         when(contractMapper.toResponseDTO(own)).thenReturn(fullResponse(own));
 
-        ContractResponse result = contractService.search(null, null, pageable).getContent().get(0);
+        ContractResponse result = contractService.search(null, null, null, pageable).getContent().get(0);
 
         assertThat(result.buyerName()).isEqualTo("Comprador");
         assertThat(result.buyerDocument()).isNull();
@@ -227,10 +234,10 @@ class ContractServiceTest {
             loginAs(role, UUID.randomUUID());
             Contract any = contractOf(UUID.randomUUID());
             Pageable pageable = PageRequest.of(0, 20);
-            when(contractRepository.search(tenantId, null, null, null, pageable)).thenReturn(new PageImpl<>(List.of(any)));
+            when(contractRepository.search(tenantId, null, null, null, null, null, pageable)).thenReturn(new PageImpl<>(List.of(any)));
             when(contractMapper.toResponseDTO(any)).thenReturn(fullResponse(any));
 
-            ContractResponse result = contractService.search(null, null, pageable).getContent().get(0);
+            ContractResponse result = contractService.search(null, null, null, pageable).getContent().get(0);
 
             assertThat(result.buyerDocument()).isEqualTo("111");
             assertThat(result.documentUrl()).isEqualTo("http://r2/doc.pdf");
@@ -260,6 +267,66 @@ class ContractServiceTest {
         assertThat(result.buyerDocument()).isNull();
         assertThat(result.documentUrl()).isNull();
         assertThat(result.notes()).isEqualTo("obs");
+    }
+
+    // ---- alertas de vencimento (IMOB-28); "hoje" = 2026-09-20 no fuso de Brasilia ----
+
+    @Test
+    void search_withExpiringInDaysRestrictsToActiveRentalsInWindowSortedBySoonestEnd() {
+        when(contractRepository.search(any(), any(), any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        contractService.search(null, null, 30, PageRequest.of(0, 20));
+
+        verify(contractRepository).search(tenantId, null, ContractStatus.ATIVO, ContractType.LOCACAO,
+                LocalDate.of(2026, 9, 20), LocalDate.of(2026, 10, 20), PageRequest.of(0, 20, Sort.by("endDate")));
+    }
+
+    @Test
+    void search_withExpiringInDaysKeepsAnExplicitSort() {
+        Pageable byValue = PageRequest.of(1, 10, Sort.by("value"));
+        when(contractRepository.search(any(), any(), any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        contractService.search(null, ContractType.LOCACAO, 90, byValue);
+
+        verify(contractRepository).search(tenantId, null, ContractStatus.ATIVO, ContractType.LOCACAO,
+                LocalDate.of(2026, 9, 20), LocalDate.of(2026, 12, 19), byValue);
+    }
+
+    @Test
+    void search_withExpiringInDaysRejectsAConflictingStatusOrType() {
+        assertThatThrownBy(() -> contractService.search(ContractStatus.ENCERRADO, null, 30, PageRequest.of(0, 20)))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getCode()).isEqualTo("INVALID_EXPIRY_FILTER"));
+        assertThatThrownBy(() -> contractService.search(null, ContractType.COMPRA_VENDA, 30, PageRequest.of(0, 20)))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getCode()).isEqualTo("INVALID_EXPIRY_FILTER"));
+        verify(contractRepository, never()).search(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void search_withExpiringInDaysOutOfRangeIsRejected() {
+        for (int days : new int[]{0, -5, 366}) {
+            assertThatThrownBy(() -> contractService.search(null, null, days, PageRequest.of(0, 20)))
+                    .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getCode()).isEqualTo("INVALID_EXPIRY_WINDOW"));
+        }
+    }
+
+    @Test
+    void search_withoutExpiringInDaysDoesNotFilterByEndDate() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(contractRepository.search(any(), any(), any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        contractService.search(ContractStatus.ATIVO, null, null, pageable);
+
+        verify(contractRepository).search(tenantId, null, ContractStatus.ATIVO, null, null, null, pageable);
+    }
+
+    @Test
+    void expiringSummary_countsActiveRentalsEndingWithin30_60And90Days() {
+        LocalDate today = LocalDate.of(2026, 9, 20);
+        when(contractRepository.countActiveRentalsEndingBetween(tenantId, today, today.plusDays(30))).thenReturn(1L);
+        when(contractRepository.countActiveRentalsEndingBetween(tenantId, today, today.plusDays(60))).thenReturn(3L);
+        when(contractRepository.countActiveRentalsEndingBetween(tenantId, today, today.plusDays(90))).thenReturn(5L);
+
+        assertThat(contractService.expiringSummary()).isEqualTo(new ExpiringContractsSummary(1, 3, 5));
     }
 
     private ContractRequest request(UUID lead) {
