@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput, MaskedInput } from "@/components/ui/masked-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { PropertySelect, UserSelect } from "@/components/shared/EntitySelects";
 import { ApiRequestError } from "@/lib/api";
 import { todayLocal } from "@/lib/utils";
+import { documentError, formatCpfCnpj, onlyDigits } from "@/lib/masks";
 import { useContractMutations } from "@/hooks/useContracts";
 import type { ContractPrefill } from "@/lib/contracts";
 import type { Contract, ContractRequest } from "@/types/contract";
@@ -35,7 +37,7 @@ export function ContractForm({ contract, prefill }: { contract?: Contract; prefi
   // Na edição (Admin/Financeiro) o backend devolve os documentos; o tipo de leitura os deixa opcionais.
   const [form, setForm] = useState<ContractRequest>(
     contract
-      ? { ...contract, buyerDocument: contract.buyerDocument ?? "", ownerDocument: contract.ownerDocument ?? "" }
+      ? { ...contract, buyerDocument: onlyDigits(contract.buyerDocument ?? ""), ownerDocument: onlyDigits(contract.ownerDocument ?? "") }
       : { ...EMPTY, ...withoutUndefined(prefill) }
   );
   const [submitting, setSubmitting] = useState(false);
@@ -43,6 +45,11 @@ export function ContractForm({ contract, prefill }: { contract?: Contract; prefi
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const invalid = documentError(form.buyerDocument) ?? documentError(form.ownerDocument);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -83,7 +90,7 @@ export function ContractForm({ contract, prefill }: { contract?: Contract; prefi
         </div>
         <div>
           <Label htmlFor="value">Valor</Label>
-          <Input id="value" type="number" required value={form.value} onChange={(e) => setForm({ ...form, value: Number(e.target.value) })} />
+          <CurrencyInput id="value" required value={form.value} onValueChange={(value) => setForm({ ...form, value })} />
         </div>
       </div>
 
@@ -105,7 +112,7 @@ export function ContractForm({ contract, prefill }: { contract?: Contract; prefi
         </div>
         <div>
           <Label htmlFor="buyerDocument">CPF/CNPJ</Label>
-          <Input id="buyerDocument" required value={form.buyerDocument} onChange={(e) => setForm({ ...form, buyerDocument: e.target.value })} />
+          <MaskedInput id="buyerDocument" required mask={formatCpfCnpj} validate={documentError} value={form.buyerDocument} onValueChange={(buyerDocument) => setForm({ ...form, buyerDocument })} />
         </div>
       </div>
 
@@ -116,7 +123,7 @@ export function ContractForm({ contract, prefill }: { contract?: Contract; prefi
         </div>
         <div>
           <Label htmlFor="ownerDocument">CPF/CNPJ</Label>
-          <Input id="ownerDocument" required value={form.ownerDocument} onChange={(e) => setForm({ ...form, ownerDocument: e.target.value })} />
+          <MaskedInput id="ownerDocument" required mask={formatCpfCnpj} validate={documentError} value={form.ownerDocument} onValueChange={(ownerDocument) => setForm({ ...form, ownerDocument })} />
         </div>
       </div>
 

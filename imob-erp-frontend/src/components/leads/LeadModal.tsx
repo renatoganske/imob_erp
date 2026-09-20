@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useRole } from "@/hooks/useRole";
 import { canManageContracts } from "@/lib/permissions";
 import { newContractHref, prefillFromLead } from "@/lib/contracts";
+import { formatPhone } from "@/lib/masks";
 import { LEAD_SOURCE_LABEL, LEAD_STAGE_LABEL } from "@/lib/labels";
 import type { Lead } from "@/types/lead";
 
@@ -25,7 +26,7 @@ export function LeadModal({ lead, onClose }: { lead: Lead | null; onClose: () =>
             </DialogHeader>
             <div className="flex flex-col gap-2 text-sm">
               <p>
-                <span className="text-muted-foreground">Telefone:</span> {lead.phone}
+                <span className="text-muted-foreground">Telefone:</span> {formatPhone(lead.phone)}
               </p>
               {lead.email && (
                 <p>

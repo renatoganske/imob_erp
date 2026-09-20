@@ -3,6 +3,7 @@
 import { ArrowRight, Phone } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { LEAD_STAGE_LABEL } from "@/lib/labels";
+import { formatPhone } from "@/lib/masks";
 import { LEAD_STAGES } from "@/types/lead";
 import type { Lead, LeadStage } from "@/types/lead";
 
@@ -27,7 +28,7 @@ export function LeadCard({
       </button>
       <p className="flex items-center gap-1.5 text-muted-foreground">
         <Phone className="h-3.5 w-3.5" />
-        {lead.phone}
+        {formatPhone(lead.phone)}
       </p>
       <div className="mt-1 flex flex-col gap-2">
         {nextStage && (

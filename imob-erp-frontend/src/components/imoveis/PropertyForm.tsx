@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/masked-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { ApiRequestError } from "@/lib/api";
@@ -101,13 +102,7 @@ export function PropertyForm({ property }: { property?: Property }) {
 
       <div>
         <Label htmlFor="price">Preço</Label>
-        <Input
-          id="price"
-          type="number"
-          required
-          value={form.price}
-          onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-        />
+        <CurrencyInput id="price" required value={form.price} onValueChange={(price) => setForm({ ...form, price })} />
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

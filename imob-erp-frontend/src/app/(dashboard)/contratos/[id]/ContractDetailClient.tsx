@@ -12,6 +12,7 @@ import { useContractMutations } from "@/hooks/useContracts";
 import { useRole } from "@/hooks/useRole";
 import { ApiRequestError, api } from "@/lib/api";
 import { CONTRACT_TYPE_LABEL } from "@/lib/labels";
+import { formatCpfCnpj } from "@/lib/masks";
 import { canManageContracts } from "@/lib/permissions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Contract } from "@/types/contract";
@@ -88,11 +89,11 @@ export function ContractDetailClient({ id }: { id: string }) {
       <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
         <div>
           <p className="text-muted-foreground">Comprador/Locatário</p>
-          <p>{contract.buyerName}{contract.buyerDocument ? ` — ${contract.buyerDocument}` : ""}</p>
+          <p>{contract.buyerName}{contract.buyerDocument ? ` — ${formatCpfCnpj(contract.buyerDocument)}` : ""}</p>
         </div>
         <div>
           <p className="text-muted-foreground">Proprietário</p>
-          <p>{contract.ownerName}{contract.ownerDocument ? ` — ${contract.ownerDocument}` : ""}</p>
+          <p>{contract.ownerName}{contract.ownerDocument ? ` — ${formatCpfCnpj(contract.ownerDocument)}` : ""}</p>
         </div>
       </div>
       {contract.status === "ATIVO" && (

@@ -5,6 +5,7 @@ import { Select } from "@/components/ui/select";
 import { useLeads } from "@/hooks/useLeads";
 import { useProperties } from "@/hooks/useProperties";
 import { useUsers } from "@/hooks/useUsers";
+import { formatPhone } from "@/lib/masks";
 import { formatCurrency } from "@/lib/utils";
 
 interface SelectProps {
@@ -67,7 +68,7 @@ export function LeadSelect({ id, value, onChange, required }: SelectProps) {
       <option value="">{loading ? "Carregando..." : "Selecione o lead"}</option>
       {data?.content.map((lead) => (
         <option key={lead.id} value={lead.id}>
-          {lead.name} — {lead.phone}
+          {lead.name} — {formatPhone(lead.phone)}
         </option>
       ))}
     </Select>
