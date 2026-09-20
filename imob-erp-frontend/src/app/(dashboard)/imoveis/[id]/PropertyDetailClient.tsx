@@ -125,6 +125,7 @@ export function PropertyDetailClient({ id }: { id: string }) {
           photos={property.photos}
           onUploaded={load}
           canDelete={canManagePhotos(role)}
+          canReorder={canManagePhotos(role)}
         />
       </section>
     </div>

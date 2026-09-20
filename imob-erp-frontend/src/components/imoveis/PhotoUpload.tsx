@@ -1,8 +1,20 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { Trash2 } from "lucide-react";
-import { useState } from "react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type Announcements,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -58,6 +70,27 @@ export function planUpload(files: File[], alreadyStored: number): Plan {
 /** Chave aceita pelo DELETE: último segmento do caminho da URL da foto, sem query string. */
 export const photoKey = (url: string): string => url.split("?")[0].split("/").filter(Boolean).at(-1) ?? "";
 
+/** Nova lista com o item de `from` movido para `to`; índices fora da lista devolvem uma cópia igual. */
+export function moveItem<T>(items: readonly T[], from: number, to: number): T[] {
+  const inRange = (i: number) => i >= 0 && i < items.length;
+  if (!inRange(from) || !inRange(to) || from === to) return [...items];
+  const rest = items.filter((_, i) => i !== from);
+  return [...rest.slice(0, to), items[from], ...rest.slice(to)];
+}
+
+const position = (order: readonly string[], id: unknown): number => order.indexOf(String(id)) + 1;
+
+const announcementsFor = (order: readonly string[]): Announcements => ({
+  onDragStart: ({ active }) => `Foto ${position(order, active.id)} pega. Use as setas para mover.`,
+  onDragOver: ({ active, over }) =>
+    over ? `Foto ${position(order, active.id)} está sobre a posição ${position(order, over.id)}.` : undefined,
+  onDragEnd: ({ active, over }) =>
+    over
+      ? `Foto ${position(order, active.id)} movida para a posição ${position(order, over.id)}.`
+      : `Foto ${position(order, active.id)} solta sem mudar de posição.`,
+  onDragCancel: ({ active }) => `Movimento cancelado. Foto ${position(order, active.id)} voltou ao lugar.`,
+});
+
 const chunk = <T,>(items: T[], size: number): T[][] =>
   Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
 
@@ -74,16 +107,73 @@ const overLimitNotice = (count: number): string | null =>
 const withStatus = (items: UploadItem[], id: number, patch: Partial<UploadItem>): UploadItem[] =>
   items.map((item) => (item.id === id ? { ...item, ...patch } : item));
 
+interface TileProps {
+  url: string;
+  index: number;
+  canReorder: boolean;
+  canDelete: boolean;
+  disabled: boolean;
+  onDelete: (url: string) => void;
+}
+
+function PhotoTile({ url, index, canReorder, canDelete, disabled, onDelete }: TileProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: url,
+    disabled: !canReorder || disabled,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`relative ${isDragging ? "z-10 opacity-80" : ""}`}
+    >
+      <img src={url} alt="Foto do imóvel" draggable={false} className="aspect-square w-full rounded-md object-cover" />
+      {index === 0 && (
+        <span className="absolute left-1 top-1 rounded bg-background/90 px-1.5 py-0.5 text-xs font-medium">Capa</span>
+      )}
+      {canReorder && (
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label={`Reordenar foto ${index + 1}`}
+          disabled={disabled}
+          className="absolute bottom-1 left-1 h-8 w-8 cursor-grab touch-none bg-background/90"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" aria-hidden />
+        </Button>
+      )}
+      {canDelete && (
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label={`Excluir foto ${index + 1}`}
+          className="absolute right-1 top-1 h-8 w-8 bg-background/90"
+          onClick={() => onDelete(url)}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function PhotoUpload({
   propertyId,
   photos,
   onUploaded,
   canDelete = false,
+  canReorder = false,
 }: {
   propertyId: string;
   photos: string[];
   onUploaded: () => void;
   canDelete?: boolean;
+  canReorder?: boolean;
 }) {
   const { getToken } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -92,6 +182,17 @@ export function PhotoUpload({
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [order, setOrder] = useState<string[]>(photos);
+  const [reordering, setReordering] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+
+  // A galeria do servidor é a fonte da verdade; a ordem local só antecipa o resultado do arraste.
+  useEffect(() => setOrder(photos), [photos]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const setStatus = (id: number, patch: Partial<UploadItem>) => setItems((current) => withStatus(current, id, patch));
 
@@ -140,6 +241,38 @@ export function PhotoUpload({
     }
   }
 
+  async function saveOrder(next: string[], previous: string[]) {
+    setOrder(next);
+    setOrderError(null);
+    setReordering(true);
+    try {
+      const token = await getToken();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/properties/${propertyId}/photos/order`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ keys: next.map(photoKey) }),
+      });
+      if (!response.ok) {
+        const problem = await response.json().catch(() => null);
+        throw new Error(problem?.error ?? "Falha ao reordenar fotos");
+      }
+      onUploaded();
+    } catch (err) {
+      setOrder(previous);
+      setOrderError(err instanceof Error ? err.message : "Falha ao reordenar fotos");
+    } finally {
+      setReordering(false);
+    }
+  }
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return;
+    const from = order.indexOf(String(active.id));
+    const to = order.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    void saveOrder(moveItem(order, from, to), order);
+  }
+
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? []);
     e.target.value = "";
@@ -162,25 +295,40 @@ export function PhotoUpload({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-        {photos.map((url, index) => (
-          <div key={url} className="relative">
-            <img src={url} alt="Foto do imóvel" className="aspect-square w-full rounded-md object-cover" />
-            {canDelete && (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label={`Excluir foto ${index + 1}`}
-                className="absolute right-1 top-1 h-8 w-8 bg-background/90"
-                onClick={() => setPendingDelete(url)}
-              >
-                <Trash2 className="h-4 w-4" aria-hidden />
-              </Button>
-            )}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+        accessibility={{
+          announcements: announcementsFor(order),
+          screenReaderInstructions: {
+            draggable:
+              "Para reordenar, pressione espaço, mova com as setas e pressione espaço novamente para soltar. Esc cancela.",
+          },
+        }}
+      >
+        <SortableContext items={order} strategy={rectSortingStrategy}>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {order.map((url, index) => (
+              <PhotoTile
+                key={url}
+                url={url}
+                index={index}
+                canReorder={canReorder && order.length > 1}
+                canDelete={canDelete}
+                disabled={reordering}
+                onDelete={setPendingDelete}
+              />
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
+
+      {orderError && (
+        <p role="alert" className="text-sm text-danger">
+          {orderError}
+        </p>
+      )}
 
       {deleteError && (
         <p role="alert" className="text-sm text-danger">
