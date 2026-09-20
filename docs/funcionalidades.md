@@ -239,7 +239,6 @@ Rotas `/api/v1/users` (todas ADMIN): `GET /`, `POST /invite`, `PATCH /{id}/role`
 **Limitações conhecidas**
 - A rota `/configuracoes/usuarios` aparece no menu para todos os papéis; só o backend bloqueia (403).
 - Alterar o papel no banco **não atualiza** o `publicMetadata` do Clerk, e o papel do token vem do Clerk.
-- IMOB-42: o health de e-mail derruba `/actuator/health` no dev quando o Mailpit está parado.
 
 **Testes:** `UserInviteAcceptanceTest`, `ClerkBackendApiClientTest`, `ClerkBackendApiClientHttpTest`.
 
@@ -336,5 +335,4 @@ O que ainda **não** existe (cards do Jira, projeto IMOB):
 | IMOB-46 | Campos específicos por tipo de imóvel |
 | IMOB-47 / IMOB-48 | Adicionar visita ao Google Agenda (link/.ics) e integração real com o Google Calendar |
 | IMOB-30 / 31 / 32 | Spikes de validação das telas de financeiro, comissões e imóveis |
-| IMOB-42 | Health de e-mail derrubando `/actuator/health` no dev |
 | — | Migration B do banco (PK de `property_photos`, `CHECK`s), sem card ainda |
