@@ -19,13 +19,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.temporal.TemporalAdjusters;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FinancialService {
+
+    /** "Mes corrente" do dashboard segue o fuso do negocio, nao o do servidor. */
+    private static final ZoneId BRASILIA = ZoneId.of("America/Sao_Paulo");
 
     private final FinancialRepository financialRepository;
     private final FinancialMapper financialMapper;
@@ -82,11 +86,11 @@ public class FinancialService {
     }
 
     @Transactional(readOnly = true)
-    public FinancialDashboardResponse dashboard() {
+    public FinancialDashboardResponse dashboard(YearMonth requestedMonth) {
         UUID tenantId = TenantContext.tenantId();
-        LocalDate today = LocalDate.now();
-        LocalDate firstDayOfMonth = today.with(TemporalAdjusters.firstDayOfMonth());
-        LocalDate lastDayOfMonth = today.with(TemporalAdjusters.lastDayOfMonth());
+        YearMonth month = requestedMonth != null ? requestedMonth : YearMonth.now(BRASILIA);
+        LocalDate firstDayOfMonth = month.atDay(1);
+        LocalDate lastDayOfMonth = month.atEndOfMonth();
 
         BigDecimal recebidoNoMes = financialRepository.sumByTypeAndStatusInPeriod(
                 tenantId, EntryType.RECEITA, EntryStatus.PAGO, firstDayOfMonth, lastDayOfMonth);
@@ -96,10 +100,11 @@ public class FinancialService {
                 tenantId, EntryType.RECEITA, EntryStatus.PENDENTE, firstDayOfMonth, lastDayOfMonth);
         BigDecimal aPagar = financialRepository.sumByTypeAndStatusInPeriod(
                 tenantId, EntryType.DESPESA, EntryStatus.PENDENTE, firstDayOfMonth, lastDayOfMonth);
-        BigDecimal inadimplencia = financialRepository.sumByTypeAndStatusInPeriod(
-                tenantId, EntryType.RECEITA, EntryStatus.ATRASADO, firstDayOfMonth, lastDayOfMonth);
+        // Inadimplencia acumulada: atrasos de meses anteriores continuam devidos e entram ate o fim do mes consultado.
+        BigDecimal inadimplencia = financialRepository.sumByTypeAndStatusDueUntil(
+                tenantId, EntryType.RECEITA, EntryStatus.ATRASADO, lastDayOfMonth);
 
-        return new FinancialDashboardResponse(recebidoNoMes.subtract(pagoNoMes), aReceber, aPagar, inadimplencia);
+        return new FinancialDashboardResponse(recebidoNoMes.subtract(pagoNoMes), aReceber, aPagar, inadimplencia, month.toString());
     }
 
     /**

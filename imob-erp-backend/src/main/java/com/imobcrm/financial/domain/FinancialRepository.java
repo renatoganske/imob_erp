@@ -32,6 +32,9 @@ public interface FinancialRepository {
 
     List<FinancialEntry> findAllByStatusAndDueDateBefore(EntryStatus status, LocalDate date);
 
+    /** Soma dos lancamentos com vencimento ate a data (inclusive), sem limite inferior. */
+    java.math.BigDecimal sumByTypeAndStatusDueUntil(UUID tenantId, EntryType type, EntryStatus status, LocalDate to);
+
     java.math.BigDecimal sumByTypeAndStatusInPeriod(
             UUID tenantId,
             EntryType type,

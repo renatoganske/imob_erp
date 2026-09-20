@@ -15,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.UUID;
 
 @RestController
@@ -57,7 +58,8 @@ public class FinancialController {
     }
 
     @GetMapping("/dashboard")
-    public FinancialDashboardResponse dashboard() {
-        return financialService.dashboard();
+    public FinancialDashboardResponse dashboard(
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
+        return financialService.dashboard(month);
     }
 }

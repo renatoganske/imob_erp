@@ -314,8 +314,10 @@ POST   /api/v1/financial/entries
 GET    /api/v1/financial/entries/{id}
 PATCH  /api/v1/financial/entries/{id}/pay
 PATCH  /api/v1/financial/entries/{id}/cancel
-GET    /api/v1/financial/dashboard
+GET    /api/v1/financial/dashboard?month=YYYY-MM
 ```
+
+`month` é opcional (padrão: mês corrente no fuso de Brasília; formato inválido retorna `400`). A resposta traz `saldoDoMes`, `totalAReceber`, `totalAPagar`, `inadimplencia` e `month`. A **inadimplência é acumulada**: soma as receitas `ATRASADO` com vencimento até o fim do mês consultado, então atrasos de meses anteriores continuam aparecendo. Só ADMIN e FINANCEIRO.
 
 ### ERP — Comissões
 ```

@@ -11,6 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @Slf4j
@@ -47,6 +48,13 @@ public class GlobalExceptionHandler {
                 .orElse("Dados invalidos");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(message, "VALIDATION_ERROR"));
+    }
+
+    /** Parametro de query/path com formato invalido (ex.: month=2026-13): erro do cliente, nao 500. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("Parametro '" + ex.getName() + "' invalido", "VALIDATION_ERROR"));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

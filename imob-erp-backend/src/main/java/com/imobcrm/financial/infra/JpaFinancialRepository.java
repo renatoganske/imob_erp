@@ -45,6 +45,17 @@ public interface JpaFinancialRepository extends JpaRepository<FinancialEntry, UU
     @Query("""
             SELECT COALESCE(SUM(f.value), 0) FROM FinancialEntry f
             WHERE f.tenantId = :tenantId AND f.type = :type AND f.status = :status
+              AND f.dueDate <= :to
+            """)
+    java.math.BigDecimal sumByTypeAndStatusDueUntil(
+            @Param("tenantId") UUID tenantId,
+            @Param("type") EntryType type,
+            @Param("status") EntryStatus status,
+            @Param("to") LocalDate to);
+
+    @Query("""
+            SELECT COALESCE(SUM(f.value), 0) FROM FinancialEntry f
+            WHERE f.tenantId = :tenantId AND f.type = :type AND f.status = :status
               AND f.dueDate BETWEEN :from AND :to
             """)
     java.math.BigDecimal sumByTypeAndStatusInPeriod(
